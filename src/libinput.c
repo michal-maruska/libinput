@@ -2340,6 +2340,7 @@ libinput_dispatch(struct libinput *libinput)
 		if (source->fd == -1)
 			continue;
 
+		// mmc:
 		source->dispatch(source->user_data);
 	}
 
@@ -3318,7 +3319,7 @@ libinput_post_event(struct libinput *libinput,
 	size_t move_len;
 	size_t new_out;
 
-#if 0
+#if 1
 	log_debug(libinput, "Queuing %s\n", event_type_to_str(event->type));
 #endif
 
@@ -3369,6 +3370,7 @@ libinput_get_event(struct libinput *libinput)
 	if (libinput->events_count == 0)
 		return NULL;
 
+	// mmc: circular buffer?
 	event = libinput->events[libinput->events_out];
 	libinput->events_out =
 		(libinput->events_out + 1) % libinput->events_len;
