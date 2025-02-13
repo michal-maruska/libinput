@@ -228,6 +228,14 @@ struct libinput_device_config_calibration {
 							  float matrix[6]);
 };
 
+struct libinput_device_config_area {
+	int (*has_rectangle)(struct libinput_device *device);
+	enum libinput_config_status (*set_rectangle)(struct libinput_device *device,
+						     const struct libinput_config_area_rectangle *rectangle);
+	struct libinput_config_area_rectangle (*get_rectangle)(struct libinput_device *device);
+	struct libinput_config_area_rectangle (*get_default_rectangle)(struct libinput_device *device);
+};
+
 struct libinput_device_config_send_events {
 	uint32_t (*get_modes)(struct libinput_device *device);
 	enum libinput_config_status (*set_mode)(struct libinput_device *device,
@@ -391,6 +399,7 @@ struct libinput_device_config_gesture {
 struct libinput_device_config {
 	struct libinput_device_config_tap *tap;
 	struct libinput_device_config_calibration *calibration;
+	struct libinput_device_config_area *area;
 	struct libinput_device_config_send_events *sendevents;
 	struct libinput_device_config_accel *accel;
 	struct libinput_device_config_natural_scroll *natural_scroll;
@@ -752,9 +761,9 @@ gesture_notify_pinch_end(struct libinput_device *device,
 			 bool cancelled);
 
 void
-gesture_notify_hold(struct libinput_device *device,
-		    uint64_t time,
-		    int finger_count);
+gesture_notify_hold_begin(struct libinput_device *device,
+			  uint64_t time,
+			  int finger_count);
 
 void
 gesture_notify_hold_end(struct libinput_device *device,
@@ -768,7 +777,9 @@ tablet_notify_axis(struct libinput_device *device,
 		   struct libinput_tablet_tool *tool,
 		   enum libinput_tablet_tool_tip_state tip_state,
 		   unsigned char *changed_axes,
-		   const struct tablet_axes *axes);
+		   const struct tablet_axes *axes,
+		   const struct input_absinfo *x,
+		   const struct input_absinfo *y);
 
 void
 tablet_notify_proximity(struct libinput_device *device,
@@ -776,7 +787,9 @@ tablet_notify_proximity(struct libinput_device *device,
 			struct libinput_tablet_tool *tool,
 			enum libinput_tablet_tool_proximity_state state,
 			unsigned char *changed_axes,
-			const struct tablet_axes *axes);
+			const struct tablet_axes *axes,
+			const struct input_absinfo *x,
+			const struct input_absinfo *y);
 
 void
 tablet_notify_tip(struct libinput_device *device,
@@ -784,7 +797,9 @@ tablet_notify_tip(struct libinput_device *device,
 		  struct libinput_tablet_tool *tool,
 		  enum libinput_tablet_tool_tip_state tip_state,
 		  unsigned char *changed_axes,
-		  const struct tablet_axes *axes);
+		  const struct tablet_axes *axes,
+		  const struct input_absinfo *x,
+		  const struct input_absinfo *y);
 
 void
 tablet_notify_button(struct libinput_device *device,
@@ -793,7 +808,9 @@ tablet_notify_button(struct libinput_device *device,
 		     enum libinput_tablet_tool_tip_state tip_state,
 		     const struct tablet_axes *axes,
 		     int32_t button,
-		     enum libinput_button_state state);
+		     enum libinput_button_state state,
+		     const struct input_absinfo *x,
+		     const struct input_absinfo *y);
 
 void
 tablet_pad_notify_button(struct libinput_device *device,
@@ -836,14 +853,15 @@ switch_notify_toggle(struct libinput_device *device,
 static inline uint64_t
 libinput_now(struct libinput *libinput)
 {
-	struct timespec ts = { 0, 0 };
+	uint64_t now;
+	int rc = now_in_us(&now);
 
-	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-		log_error(libinput, "clock_gettime failed: %s\n", strerror(errno));
+	if (rc < 0) {
+		log_error(libinput, "clock_gettime failed: %s\n", strerror(-rc));
 		return 0;
 	}
 
-	return s2us(ts.tv_sec) + ns2us(ts.tv_nsec);
+	return now;
 }
 
 static inline struct device_float_coords

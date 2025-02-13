@@ -29,21 +29,24 @@
 
 #include <stdbool.h>
 #include <stdarg.h>
-#include <check.h>
 #include <libevdev/libevdev.h>
 #include <libevdev/libevdev-uinput.h>
 #include <libinput.h>
 #include <math.h>
 
-#ifndef ck_assert_notnull
-#define ck_assert_notnull(ptr) ck_assert_ptr_ne(ptr, NULL)
-#endif
-
-#include "check-double-macros.h"
-
 #include "libinput-private-config.h"
 #include "libinput-util.h"
 #include "quirks.h"
+
+#include "litest-runner.h"
+
+#define START_TEST(func_)  \
+   static enum litest_runner_result func_(const struct litest_runner_test_env *test_env_) { \
+	int _i __attribute__((unused)) = test_env_->rangeval;
+
+#define END_TEST \
+	return LITEST_PASS; \
+   }
 
 struct test_device {
 	const char *name;
@@ -60,7 +63,7 @@ struct test_device {
 	\
 	static const struct test_device _test_device \
 		__attribute__ ((used)) \
-		__attribute__ ((section ("test_section"))) = { \
+		__attribute__ ((section ("test_device_section"))) = { \
 		name, &_device \
 	}; \
 	static struct litest_test_device _device = { \
@@ -74,15 +77,22 @@ struct test_collection {
 	void (*setup)(void);
 } __attribute__((aligned(16)));
 
-#define TEST_COLLECTION(name) \
-	static void (name##_setup)(void); \
-	static const struct test_collection _test_collection \
+#define TEST_COLLECTION(name_) \
+	static void (CONCAT(name_ , __LINE__))(void); \
+	static const struct test_collection CONCAT(_test_collection_, __LINE__) \
 	__attribute__ ((used)) \
 	__attribute__ ((section ("test_collection_section"))) = { \
-		#name, name##_setup \
+		#name_, CONCAT(name_, __LINE__) \
 	}; \
-	static void (name##_setup)(void)
+	static void (CONCAT(name_, __LINE__))(void)
 
+__attribute__ ((format (printf, 3, 0)))
+void _litest_checkpoint(const char *func,
+			int line,
+			const char *format,
+			...);
+#define litest_checkpoint(...) \
+	_litest_checkpoint(__func__, __LINE__, __VA_ARGS__)
 
 /**
  * litest itself needs the user_data to store some test-suite-specific
@@ -123,6 +133,15 @@ litest_fail_comparison_ptr(const char *file,
 			   int line,
 			   const char *func,
 			   const char *comparison);
+
+void
+litest_fail_comparison_str(const char *file,
+			   int line,
+			   const char *func,
+			   const char *comparison,
+			   const char *operator,
+			   const char *astr,
+			   const char *bstr);
 
 #define litest_assert(cond) \
 	do { \
@@ -176,6 +195,22 @@ litest_fail_comparison_ptr(const char *file,
 			litest_abort_msg("Unexpected errno: %d (%s)", _e, strerror(_e)); \
 	} while(0);
 
+#define litest_assert_comparison_enum_(a_, op_, b_) \
+	do { \
+		__typeof__(a_) _a = a_; \
+		__typeof__(a_) _b = b_; \
+		if (!((_a) op_ (_b))) \
+			litest_fail_comparison_int(__FILE__, __LINE__, __func__,\
+						   #op_, (int)_a, (int)_b, \
+						   #a_, #b_); \
+	} while(0)
+
+#define litest_assert_enum_eq(a_, b_) \
+	litest_assert_comparison_enum_(a_, ==, b_)
+
+#define litest_assert_enum_ne(a_, b_) \
+	litest_assert_comparison_enum_(a_, !=, b_)
+
 #define litest_assert_int_eq(a_, b_) \
 	litest_assert_comparison_int_(a_, ==, b_)
 
@@ -203,17 +238,6 @@ litest_fail_comparison_ptr(const char *file,
 						   #a_ " " #op_ " " #b_); \
 	} while(0)
 
-#define litest_assert_comparison_double_(a_, op_, b_) \
-	do { \
-		const double EPSILON = 1.0/256; \
-		__typeof__(a_) _a = a_; \
-		__typeof__(b_) _b = b_; \
-		if (!((_a) op_ (_b)) && fabs((_a) - (_b)) > EPSILON)  \
-			litest_fail_comparison_double(__FILE__, __LINE__, __func__,\
-						      #op_, _a, _b, \
-						      #a_, #b_); \
-	} while(0)
-
 #define litest_assert_ptr_eq(a_, b_) \
 	litest_assert_comparison_ptr_(a_, ==, b_)
 
@@ -226,23 +250,112 @@ litest_fail_comparison_ptr(const char *file,
 #define litest_assert_ptr_notnull(a_) \
 	litest_assert_comparison_ptr_(a_, !=, NULL)
 
+#define litest_assert_str_eq(a_, b_) \
+	do { \
+		const char *_a = a_; \
+		const char *_b = b_; \
+		if (!streq(_a, _b)) \
+			litest_fail_comparison_str(__FILE__, __LINE__, __func__,\
+						   #a_ " == " #b_, \
+						   "==", \
+						   _a, _b); \
+	} while(0)
+
+#define litest_assert_str_ne(a_, b_) \
+	do { \
+		const char *_a = a_; \
+		const char *_b = b_; \
+		if (streq(_a, _b)) \
+			litest_fail_comparison_str(__FILE__, __LINE__, __func__,\
+						   #a_ " != " #b_, \
+						   "!=", \
+						   _a, _b); \
+	} while(0)
+
+#define LITEST_DEFAULT_EPSILON  0.001
+
+#define litest_assert_double_eq_epsilon(a_, b_, epsilon_)\
+	do { \
+		__typeof__(a_) _a = a_; \
+		__typeof__(b_) _b = b_; \
+		if (!(fabs((_a) - (_b)) < epsilon_))  \
+			litest_fail_comparison_double(__FILE__, __LINE__, __func__,\
+						      "==", _a, _b, \
+						      #a_, #b_); \
+	} while(0)
+
+#define litest_assert_double_ne_epsilon(a_, b_, epsilon_)\
+	do { \
+		__typeof__(a_) _a = a_; \
+		__typeof__(b_) _b = b_; \
+		if (!(fabs((_a) - (_b)) > epsilon_))  \
+			litest_fail_comparison_double(__FILE__, __LINE__, __func__,\
+						      "!=", _a, _b, \
+						      #a_, #b_); \
+	} while(0)
+
+#define litest_assert_double_gt_epsilon(a_, b_, epsilon_)\
+	do { \
+		__typeof__(a_) _a = a_; \
+		__typeof__(b_) _b = b_; \
+		if (!(_a - (epsilon_) > _b))  \
+			litest_fail_comparison_double(__FILE__, __LINE__, __func__,\
+						      ">", _a, _b, \
+						      #a_, #b_); \
+	} while(0)
+
+#define litest_assert_double_ge_epsilon(a_, b_, epsilon_)\
+	do { \
+		__typeof__(a_) _a = a_; \
+		__typeof__(b_) _b = b_; \
+		if (!(_a > _b || fabs((_a) - (_b)) < epsilon_))  \
+			litest_fail_comparison_double(__FILE__, __LINE__, __func__,\
+						      ">=", _a, _b, \
+						      #a_, #b_); \
+	} while(0)
+
+#define litest_assert_double_lt_epsilon(a_, b_, epsilon_)\
+	do { \
+		__typeof__(a_) _a = a_; \
+		__typeof__(b_) _b = b_; \
+		if (!(_a < _b - (epsilon_)))  \
+			litest_fail_comparison_double(__FILE__, __LINE__, __func__,\
+						      "<", _a, _b, \
+						      #a_, #b_); \
+	} while(0)
+
+#define litest_assert_double_le_epsilon(a_, b_, epsilon_)\
+	do { \
+		__typeof__(a_) _a = a_; \
+		__typeof__(b_) _b = b_; \
+		if (!(_a < _b || fabs((_a) - (_b)) < epsilon_))  \
+			litest_fail_comparison_double(__FILE__, __LINE__, __func__,\
+						      "<=", _a, _b, \
+						      #a_, #b_); \
+	} while(0)
+
+#define litest_assert_comparison_double_(a_, op_, b_) \
+	litest_assert_comparison_double_epsilon_(a_, op_, b_, LITEST_DEFAULT_EPSILON)
+
 #define litest_assert_double_eq(a_, b_)\
-	litest_assert_comparison_double_((a_), ==, (b_))
+	litest_assert_double_eq_epsilon((a_), (b_), LITEST_DEFAULT_EPSILON)
 
 #define litest_assert_double_ne(a_, b_)\
-	litest_assert_comparison_double_((a_), !=, (b_))
+	litest_assert_double_ne_epsilon((a_), (b_),LITEST_DEFAULT_EPSILON)
 
 #define litest_assert_double_lt(a_, b_)\
-	litest_assert_comparison_double_((a_), <, (b_))
+	litest_assert_double_lt_epsilon((a_), (b_),LITEST_DEFAULT_EPSILON)
 
 #define litest_assert_double_le(a_, b_)\
-	litest_assert_comparison_double_((a_), <=, (b_))
+	litest_assert_double_le_epsilon((a_), (b_),LITEST_DEFAULT_EPSILON)
 
 #define litest_assert_double_gt(a_, b_)\
-	litest_assert_comparison_double_((a_), >, (b_))
+	litest_assert_double_gt_epsilon((a_), (b_),LITEST_DEFAULT_EPSILON)
 
 #define litest_assert_double_ge(a_, b_)\
-	litest_assert_comparison_double_((a_), >=, (b_))
+	litest_assert_double_ge_epsilon((a_), (b_),LITEST_DEFAULT_EPSILON)
+
+void litest_backtrace(void);
 
 enum litest_device_type {
 	LITEST_NO_DEVICE = -1,
@@ -468,14 +581,6 @@ litest_axis_set_value(struct axis_replacement *axes, int code, double value)
 	litest_axis_set_value_unchecked(axes, code, value);
 }
 
-/* A loop range, resolves to:
-   for (i = lower; i < upper; i++)
- */
-struct range {
-	int lower; /* inclusive */
-	int upper; /* exclusive */
-};
-
 struct libinput *litest_create_context(void);
 void litest_destroy_context(struct libinput *li);
 void litest_disable_log_handler(struct libinput *libinput);
@@ -578,6 +683,15 @@ litest_ungrab_device(struct litest_device *d);
 
 void
 litest_delete_device(struct litest_device *d);
+
+const char *
+litest_event_type_str(enum libinput_event_type type);
+
+int
+_litest_dispatch(struct libinput *li, const char *func, int line);
+
+#define litest_dispatch(li_) \
+	_litest_dispatch(li_, __func__, __LINE__)
 
 void
 litest_event(struct litest_device *t,
@@ -764,20 +878,37 @@ void
 litest_wait_for_event(struct libinput *li);
 
 void
-litest_wait_for_event_of_type(struct libinput *li, ...);
+_litest_wait_for_event_of_type(struct libinput *li, ...);
+
+#define litest_wait_for_event_of_type(li_, ...) \
+	_litest_wait_for_event_of_type(li_, __VA_ARGS__, -1)
 
 void
 litest_drain_events(struct libinput *li);
 
 void
-litest_drain_events_of_type(struct libinput *li, ...);
+_litest_drain_events_of_type(struct libinput *li, ...);
+
+#define litest_drain_events_of_type(li_, ...) \
+	_litest_drain_events_of_type(li_, __VA_ARGS__, -1)
 
 void
 litest_assert_event_type(struct libinput_event *event,
 			 enum libinput_event_type want);
 
+#define litest_assert_event_type_not_one_of(...) \
+    _litest_assert_event_type_not_one_of(__VA_ARGS__, -1)
+
 void
-litest_assert_empty_queue(struct libinput *li);
+_litest_assert_event_type_not_one_of(struct libinput_event *event, ...);
+
+#define litest_assert_empty_queue(li_) \
+	_litest_assert_empty_queue(li_, __func__, __LINE__)
+
+void
+_litest_assert_empty_queue(struct libinput *li,
+			   const char *func,
+			   int line);
 
 void
 litest_assert_touch_sequence(struct libinput *li);
@@ -866,10 +997,14 @@ void
 litest_assert_key_event(struct libinput *li, unsigned int key,
 			enum libinput_key_state state);
 
+#define litest_assert_button_event(li_, button_, state_) \
+	_litest_assert_button_event(li_, button_, state_, __func__, __LINE__)
+
 void
-litest_assert_button_event(struct libinput *li,
-			   unsigned int button,
-			   enum libinput_button_state state);
+_litest_assert_button_event(struct libinput *li,
+			    unsigned int button,
+			    enum libinput_button_state state,
+			    const char *func, int line);
 
 void
 litest_assert_switch_event(struct libinput *li,
@@ -888,9 +1023,13 @@ litest_assert_axis_end_sequence(struct libinput *li,
 				enum libinput_pointer_axis axis,
 				enum libinput_pointer_axis_source source);
 
+#define litest_assert_only_typed_events(...) \
+	_litest_assert_only_typed_events(__VA_ARGS__, __func__, __LINE__)
 void
-litest_assert_only_typed_events(struct libinput *li,
-				enum libinput_event_type type);
+_litest_assert_only_typed_events(struct libinput *li,
+				 enum libinput_event_type type,
+				 const char *func,
+				 int line);
 
 void
 litest_assert_only_axis_events(struct libinput *li,
@@ -922,10 +1061,15 @@ litest_assert_pad_key_event(struct libinput *li,
 			    unsigned int key,
 			    enum libinput_key_state state);
 
+#define litest_assert_gesture_event(...) \
+	_litest_assert_gesture_event(__VA_ARGS__, __func__, __LINE__)
+
 void
-litest_assert_gesture_event(struct libinput *li,
-			    enum libinput_event_type type,
-			    int nfingers);
+_litest_assert_gesture_event(struct libinput *li,
+			     enum libinput_event_type type,
+			     int nfingers,
+			     const char *func,
+			     int line);
 
 struct libevdev_uinput *
 litest_create_uinput_device(const char *name,
@@ -1180,13 +1324,25 @@ litest_enable_buttonareas(struct litest_device *dev)
 }
 
 static inline void
+litest_enable_drag_lock_sticky(struct libinput_device *device)
+{
+	enum libinput_config_status status, expected;
+
+	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
+	status = libinput_device_config_tap_set_drag_lock_enabled(device,
+								  LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_STICKY);
+
+	litest_assert_int_eq(status, expected);
+}
+
+static inline void
 litest_enable_drag_lock(struct libinput_device *device)
 {
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
 	status = libinput_device_config_tap_set_drag_lock_enabled(device,
-								  LIBINPUT_CONFIG_DRAG_LOCK_ENABLED);
+								  LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_TIMEOUT);
 
 	litest_assert_int_eq(status, expected);
 }

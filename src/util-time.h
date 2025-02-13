@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <time.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -57,6 +58,12 @@ ms2us(uint64_t ms)
 	return us(ms * 1000);
 }
 
+static inline uint32_t
+ms2s(uint64_t ms)
+{
+	return ms / 1000;
+}
+
 static inline uint64_t
 s2us(uint64_t s)
 {
@@ -75,6 +82,12 @@ us2ms(uint64_t us)
 	return (uint32_t)(us / 1000);
 }
 
+static inline uint32_t
+us2s(uint64_t us)
+{
+	return ms2s(us2ms(us));
+}
+
 static inline double
 us2ms_f(uint64_t us)
 {
@@ -87,6 +100,12 @@ tv2us(const struct timeval *tv)
 	return s2us(tv->tv_sec) + tv->tv_usec;
 }
 
+static inline uint64_t
+tp2us(const struct timespec *tp)
+{
+	return s2us(tp->tv_sec) + ns2us(tp->tv_nsec);
+}
+
 static inline struct timeval
 us2tv(uint64_t time)
 {
@@ -96,6 +115,20 @@ us2tv(uint64_t time)
 	tv.tv_usec = time % ms2us(1000);
 
 	return tv;
+}
+
+static inline int
+now_in_us(uint64_t *us)
+{
+	struct timespec ts = { 0, 0 };
+
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+		*us = 0;
+		return -errno;
+	}
+
+	*us = s2us(ts.tv_sec) + ns2us(ts.tv_nsec);
+	return 0;
 }
 
 struct human_time {

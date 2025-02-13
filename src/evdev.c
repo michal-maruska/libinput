@@ -383,18 +383,12 @@ evdev_transform_relative(struct evdev_device *device,
 	matrix_mult_vec(&rel_matrix, &point->x, &point->y);
 }
 
-static inline double
-scale_axis(const struct input_absinfo *absinfo, double val, double to_range)
-{
-	return (val - absinfo->minimum) * to_range / absinfo_range(absinfo);
-}
-
 double
 evdev_device_transform_x(struct evdev_device *device,
 			 double x,
 			 uint32_t width)
 {
-	return scale_axis(device->abs.absinfo_x, x, width);
+	return absinfo_scale_axis(device->abs.absinfo_x, x, width);
 }
 
 double
@@ -402,7 +396,7 @@ evdev_device_transform_y(struct evdev_device *device,
 			 double y,
 			 uint32_t height)
 {
-	return scale_axis(device->abs.absinfo_y, y, height);
+	return absinfo_scale_axis(device->abs.absinfo_y, y, height);
 }
 
 void
@@ -2733,8 +2727,8 @@ evdev_device_get_size(const struct evdev_device *device,
 	    !x->resolution || !y->resolution)
 		return -1;
 
-	*width = evdev_convert_to_mm(x, x->maximum);
-	*height = evdev_convert_to_mm(y, y->maximum);
+	*width = absinfo_convert_to_mm(x, x->maximum);
+	*height = absinfo_convert_to_mm(y, y->maximum);
 
 	return 0;
 }
@@ -3127,51 +3121,4 @@ evdev_device_destroy(struct evdev_device *device)
 	libevdev_free(device->evdev);
 	udev_device_unref(device->udev_device);
 	free(device);
-}
-
-bool
-evdev_tablet_has_left_handed(struct evdev_device *device)
-{
-	bool has_left_handed = true;
-#if HAVE_LIBWACOM
-	struct libinput *li = evdev_libinput_context(device);
-	WacomDeviceDatabase *db = NULL;
-	WacomDevice *d = NULL;
-	WacomError *error;
-	const char *devnode;
-
-	db = libinput_libwacom_ref(li);
-	if (!db)
-		goto out;
-
-	error = libwacom_error_new();
-	devnode = udev_device_get_devnode(device->udev_device);
-
-	d = libwacom_new_from_path(db,
-				   devnode,
-				   WFALLBACK_NONE,
-				   error);
-
-	if (d) {
-		has_left_handed = !!libwacom_is_reversible(d);
-	} else if (libwacom_error_get_code(error) == WERROR_UNKNOWN_MODEL) {
-		evdev_log_info(device,
-			       "tablet '%s' unknown to libwacom\n",
-			       device->devname);
-	} else {
-		evdev_log_error(device,
-				"libwacom error: %s\n",
-				libwacom_error_get_message(error));
-	}
-
-	if (error)
-		libwacom_error_free(&error);
-	if (d)
-		libwacom_destroy(d);
-	if (db)
-		libinput_libwacom_unref(li);
-
-out:
-#endif
-	return has_left_handed;
 }

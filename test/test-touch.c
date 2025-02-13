@@ -23,7 +23,6 @@
 
 #include <config.h>
 
-#include <check.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libinput.h>
@@ -43,24 +42,24 @@ START_TEST(touch_frame_events)
 	litest_drain_events(dev->libinput);
 
 	litest_touch_down(dev, 0, 10, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	while ((event = libinput_get_event(li))) {
 		if (libinput_event_get_type(event) == LIBINPUT_EVENT_TOUCH_FRAME)
 			have_frame_event++;
 		libinput_event_destroy(event);
 	}
-	ck_assert_int_eq(have_frame_event, 1);
+	litest_assert_int_eq(have_frame_event, 1);
 
 	litest_touch_down(dev, 1, 10, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	while ((event = libinput_get_event(li))) {
 		if (libinput_event_get_type(event) == LIBINPUT_EVENT_TOUCH_FRAME)
 			have_frame_event++;
 		libinput_event_destroy(event);
 	}
-	ck_assert_int_eq(have_frame_event, 2);
+	litest_assert_int_eq(have_frame_event, 2);
 }
 END_TEST
 
@@ -72,12 +71,12 @@ START_TEST(touch_downup_no_motion)
 	litest_drain_events(li);
 
 	litest_touch_down(dev, 0, 10, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	litest_assert_touch_down_frame(li);
 
 	litest_touch_up(dev, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	litest_assert_touch_up_frame(li);
 }
@@ -108,7 +107,7 @@ START_TEST(touch_abs_transform)
 
 	litest_touch_down(dev, 0, 100, 100);
 
-	libinput_dispatch(libinput);
+	litest_dispatch(libinput);
 
 	while ((ev = libinput_get_event(libinput))) {
 		if (libinput_event_get_type(ev) != LIBINPUT_EVENT_TOUCH_DOWN) {
@@ -118,16 +117,18 @@ START_TEST(touch_abs_transform)
 
 		tev = libinput_event_get_touch_event(ev);
 		fx = libinput_event_touch_get_x_transformed(tev, 1920);
-		ck_assert_int_eq(fx, 1919.0);
+		litest_assert_double_eq_epsilon(fx, 1920.0, 0.1);
+		litest_assert_double_lt(fx, 1920.0);
 		fy = libinput_event_touch_get_y_transformed(tev, 720);
-		ck_assert_int_eq(fy, 719.0);
+		litest_assert_double_eq_epsilon(fy, 720.0, 0.1);
+		litest_assert_double_lt(fy, 720.0);
 
 		tested = true;
 
 		libinput_event_destroy(ev);
 	}
 
-	ck_assert(tested);
+	litest_assert(tested);
 
 	litest_delete_device(dev);
 }
@@ -142,13 +143,13 @@ touch_assert_seat_slot(struct libinput *li,
 	struct libinput_event *ev;
 	struct libinput_event_touch *tev;
 
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	ev = libinput_get_event(li);
 	tev = litest_is_touch_event(ev, type);
 	slot = libinput_event_touch_get_slot(tev);
-	ck_assert_int_eq(slot, slot);
+	litest_assert_int_eq(slot, slot);
 	slot = libinput_event_touch_get_seat_slot(tev);
-	ck_assert_int_eq(slot, seat_slot);
+	litest_assert_int_eq(slot, seat_slot);
 	libinput_event_destroy(ev);
 
 	ev = libinput_get_event(li);
@@ -227,7 +228,7 @@ START_TEST(touch_many_slots)
 	for (slot = 0; slot < num_tps; ++slot)
 		litest_touch_up(dev, slot);
 
-	libinput_dispatch(libinput);
+	litest_dispatch(libinput);
 	while ((ev = libinput_get_event(libinput))) {
 		type = libinput_event_get_type(ev);
 
@@ -237,24 +238,24 @@ START_TEST(touch_many_slots)
 			break;
 
 		libinput_event_destroy(ev);
-		libinput_dispatch(libinput);
+		litest_dispatch(libinput);
 	}
 
-	ck_assert_notnull(ev);
-	ck_assert_int_gt(slot_count, 0);
+	litest_assert_notnull(ev);
+	litest_assert_int_gt(slot_count, 0);
 
-	libinput_dispatch(libinput);
+	litest_dispatch(libinput);
 	do {
 		type = libinput_event_get_type(ev);
-		ck_assert_int_ne(type, LIBINPUT_EVENT_TOUCH_DOWN);
+		litest_assert_enum_ne(type, LIBINPUT_EVENT_TOUCH_DOWN);
 		if (type == LIBINPUT_EVENT_TOUCH_UP)
 			slot_count--;
 
 		libinput_event_destroy(ev);
-		libinput_dispatch(libinput);
+		litest_dispatch(libinput);
 	} while ((ev = libinput_get_event(libinput)));
 
-	ck_assert_int_eq(slot_count, 0);
+	litest_assert_int_eq(slot_count, 0);
 
 	litest_delete_device(dev);
 }
@@ -278,18 +279,18 @@ START_TEST(touch_double_touch_down_up)
 	litest_touch_down(dev, 0, 0, 0);
 	litest_touch_up(dev, 0);
 	litest_touch_up(dev, 0);
-	libinput_dispatch(libinput);
+	litest_dispatch(libinput);
 	litest_restore_log_handler(libinput);
 
 	while ((ev = libinput_get_event(libinput))) {
 		switch (libinput_event_get_type(ev)) {
 		case LIBINPUT_EVENT_TOUCH_DOWN:
-			ck_assert(!got_down);
+			litest_assert(!got_down);
 			got_down = true;
 			break;
 		case LIBINPUT_EVENT_TOUCH_UP:
-			ck_assert(got_down);
-			ck_assert(!got_up);
+			litest_assert(got_down);
+			litest_assert(!got_up);
 			got_up = true;
 			break;
 		default:
@@ -297,11 +298,11 @@ START_TEST(touch_double_touch_down_up)
 		}
 
 		libinput_event_destroy(ev);
-		libinput_dispatch(libinput);
+		litest_dispatch(libinput);
 	}
 
-	ck_assert(got_down);
-	ck_assert(got_up);
+	litest_assert(got_down);
+	litest_assert(got_up);
 }
 END_TEST
 
@@ -330,7 +331,7 @@ START_TEST(touch_calibration_scale)
 
 		litest_touch_down(dev, 0, 100, 100);
 		litest_touch_up(dev, 0);
-		libinput_dispatch(li);
+		litest_dispatch(li);
 
 		ev = libinput_get_event(li);
 		tev = litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_DOWN);
@@ -338,8 +339,8 @@ START_TEST(touch_calibration_scale)
 		x = libinput_event_touch_get_x_transformed(tev, width);
 		y = libinput_event_touch_get_y_transformed(tev, height);
 
-		ck_assert_int_eq(round(x), round(width * matrix[0]));
-		ck_assert_int_eq(round(y), round(height * matrix[4]));
+		litest_assert_int_eq(round(x), round(width * matrix[0]));
+		litest_assert_int_eq(round(y), round(height * matrix[4]));
 
 		libinput_event_destroy(ev);
 		litest_drain_events(li);
@@ -400,7 +401,7 @@ START_TEST(touch_calibration_rotation)
 
 		litest_touch_down(dev, 0, 80, 20);
 		litest_touch_up(dev, 0);
-		libinput_dispatch(li);
+		litest_dispatch(li);
 		ev = libinput_get_event(li);
 		tev = litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_DOWN);
 
@@ -408,28 +409,24 @@ START_TEST(touch_calibration_rotation)
 		y = libinput_event_touch_get_y_transformed(tev, height);
 
 		/* rounding errors... */
-#define almost_equal(a_, b_) \
-		{ ck_assert_int_ge((a_) + 0.5, (b_) - 1); \
-		  ck_assert_int_le((a_) + 0.5, (b_) + 1); }
 		switch(i) {
 		case 0: /* 0 deg */
-			almost_equal(x, width * 0.8);
-			almost_equal(y, height * 0.2);
+			litest_assert_double_eq_epsilon(x, width * 0.8, 1.0);
+			litest_assert_double_eq_epsilon(y, height * 0.2, 1.0);
 			break;
 		case 1: /* 90 deg cw */
-			almost_equal(x, width * 0.8);
-			almost_equal(y, height * 0.8);
+			litest_assert_double_eq_epsilon(x, width * 0.8, 1.0);
+			litest_assert_double_eq_epsilon(y, height * 0.8, 1.0);
 			break;
 		case 2: /* 180 deg cw */
-			almost_equal(x, width * 0.2);
-			almost_equal(y, height * 0.8);
+			litest_assert_double_eq_epsilon(x, width * 0.2, 1.0);
+			litest_assert_double_eq_epsilon(y, height * 0.8, 1.0);
 			break;
 		case 3: /* 270 deg cw */
-			almost_equal(x, width * 0.2);
-			almost_equal(y, height * 0.2);
+			litest_assert_double_eq_epsilon(x, width * 0.2, 1.0);
+			litest_assert_double_eq_epsilon(y, height * 0.2, 1.0);
 			break;
 		}
-#undef almost_equal
 
 		libinput_event_destroy(ev);
 		litest_drain_events(li);
@@ -464,7 +461,7 @@ START_TEST(touch_calibration_translation)
 		litest_touch_down(dev, 0, 100, 100);
 		litest_touch_up(dev, 0);
 
-		libinput_dispatch(li);
+		litest_dispatch(li);
 		ev = libinput_get_event(li);
 		tev = litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_DOWN);
 
@@ -472,10 +469,10 @@ START_TEST(touch_calibration_translation)
 		y = libinput_event_touch_get_y_transformed(tev, height);
 
 		/* sigh. rounding errors */
-		ck_assert_int_ge(round(x), width + round(width * matrix[2]) - 1);
-		ck_assert_int_ge(round(y), height + round(height * matrix[5]) - 1);
-		ck_assert_int_le(round(x), width + round(width * matrix[2]) + 1);
-		ck_assert_int_le(round(y), height + round(height * matrix[5]) + 1);
+		litest_assert_int_ge(round(x), width + round(width * matrix[2]) - 1);
+		litest_assert_int_ge(round(y), height + round(height * matrix[5]) - 1);
+		litest_assert_int_le(round(x), width + round(width * matrix[2]) + 1);
+		litest_assert_int_le(round(y), height + round(height * matrix[5]) + 1);
 
 		libinput_event_destroy(ev);
 		litest_drain_events(li);
@@ -493,18 +490,18 @@ START_TEST(touch_calibrated_screen_path)
 	int rc;
 
 	rc = libinput_device_config_calibration_has_matrix(dev->libinput_device);
-	ck_assert_int_eq(rc, 1);
+	litest_assert_int_eq(rc, 1);
 
 	rc = libinput_device_config_calibration_get_matrix(dev->libinput_device,
 							   matrix);
-	ck_assert_int_eq(rc, 1);
+	litest_assert_int_eq(rc, 1);
 
-	ck_assert_double_eq(matrix[0], 1.2);
-	ck_assert_double_eq(matrix[1], 3.4);
-	ck_assert_double_eq(matrix[2], 5.6);
-	ck_assert_double_eq(matrix[3], 7.8);
-	ck_assert_double_eq(matrix[4], 9.10);
-	ck_assert_double_eq(matrix[5], 11.12);
+	litest_assert_double_eq(matrix[0], 1.2);
+	litest_assert_double_eq(matrix[1], 3.4);
+	litest_assert_double_eq(matrix[2], 5.6);
+	litest_assert_double_eq(matrix[3], 7.8);
+	litest_assert_double_eq(matrix[4], 9.10);
+	litest_assert_double_eq(matrix[5], 11.12);
 }
 END_TEST
 
@@ -518,19 +515,19 @@ START_TEST(touch_calibration_config)
 	int rc;
 
 	rc = libinput_device_config_calibration_has_matrix(dev->libinput_device);
-	ck_assert_int_eq(rc, 1);
+	litest_assert_int_eq(rc, 1);
 
 	/* Twice so we have every to-fro combination */
 	for (int i = 0; i < 2; i++) {
 		status = libinput_device_config_calibration_set_matrix(dev->libinput_device, identity);
-		ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+		litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
 		libinput_device_config_calibration_get_matrix(dev->libinput_device, matrix);
-		ck_assert_int_eq(memcmp(matrix, identity, sizeof(matrix)), 0);
+		litest_assert_int_eq(memcmp(matrix, identity, sizeof(matrix)), 0);
 
 		status = libinput_device_config_calibration_set_matrix(dev->libinput_device, nonidentity);
-		ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+		litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
 		libinput_device_config_calibration_get_matrix(dev->libinput_device, matrix);
-		ck_assert_int_eq(memcmp(matrix, nonidentity, sizeof(matrix)), 0);
+		litest_assert_int_eq(memcmp(matrix, nonidentity, sizeof(matrix)), 0);
 	}
 
 }
@@ -562,13 +559,13 @@ START_TEST(touch_calibrated_screen_udev)
 	int rc;
 
 	udev = udev_new();
-	ck_assert_notnull(udev);
+	litest_assert_notnull(udev);
 
 	li = libinput_udev_create_context(&simple_interface, NULL, udev);
-	ck_assert_notnull(li);
-	ck_assert_int_eq(libinput_udev_assign_seat(li, "seat0"), 0);
+	litest_assert_notnull(li);
+	litest_assert_int_eq(libinput_udev_assign_seat(li, "seat0"), 0);
 
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	while ((ev = libinput_get_event(li))) {
 		struct libinput_device *d;
@@ -591,19 +588,19 @@ START_TEST(touch_calibrated_screen_udev)
 
 	litest_drain_events(li);
 
-	ck_assert_notnull(device);
+	litest_assert_notnull(device);
 	rc = libinput_device_config_calibration_has_matrix(device);
-	ck_assert_int_eq(rc, 1);
+	litest_assert_int_eq(rc, 1);
 
 	rc = libinput_device_config_calibration_get_matrix(device, matrix);
-	ck_assert_int_eq(rc, 1);
+	litest_assert_int_eq(rc, 1);
 
-	ck_assert_double_eq(matrix[0], 1.2);
-	ck_assert_double_eq(matrix[1], 3.4);
-	ck_assert_double_eq(matrix[2], 5.6);
-	ck_assert_double_eq(matrix[3], 7.8);
-	ck_assert_double_eq(matrix[4], 9.10);
-	ck_assert_double_eq(matrix[5], 11.12);
+	litest_assert_double_eq(matrix[0], 1.2);
+	litest_assert_double_eq(matrix[1], 3.4);
+	litest_assert_double_eq(matrix[2], 5.6);
+	litest_assert_double_eq(matrix[3], 7.8);
+	litest_assert_double_eq(matrix[4], 9.10);
+	litest_assert_double_eq(matrix[5], 11.12);
 
 	libinput_device_unref(device);
 
@@ -621,16 +618,16 @@ START_TEST(touch_no_left_handed)
 	int rc;
 
 	rc = libinput_device_config_left_handed_is_available(d);
-	ck_assert_int_eq(rc, 0);
+	litest_assert_int_eq(rc, 0);
 
 	rc = libinput_device_config_left_handed_get(d);
-	ck_assert_int_eq(rc, 0);
+	litest_assert_int_eq(rc, 0);
 
 	rc = libinput_device_config_left_handed_get_default(d);
-	ck_assert_int_eq(rc, 0);
+	litest_assert_int_eq(rc, 0);
 
 	status = libinput_device_config_left_handed_set(d, 0);
-	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
+	litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
 }
 END_TEST
 
@@ -641,17 +638,17 @@ START_TEST(fake_mt_exists)
 	struct libinput_event *event;
 	struct libinput_device *device;
 
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	event = libinput_get_event(li);
 	device = libinput_event_get_device(event);
 
-	ck_assert(!libinput_device_has_capability(device,
+	litest_assert(!libinput_device_has_capability(device,
 						  LIBINPUT_DEVICE_CAP_TOUCH));
 
 	/* This test may need fixing if we add other fake-mt devices that
 	 * have different capabilities */
-	ck_assert(libinput_device_has_capability(device,
+	litest_assert(libinput_device_has_capability(device,
 						 LIBINPUT_DEVICE_CAP_POINTER));
 
 	libinput_event_destroy(event);
@@ -687,10 +684,9 @@ START_TEST(touch_protocol_a_init)
 	struct libinput *li = dev->libinput;
 	struct libinput_device *device = dev->libinput_device;
 
-	ck_assert_int_ne(libinput_next_event_type(li),
-			 LIBINPUT_EVENT_NONE);
+	litest_wait_for_event(li);
 
-	ck_assert(libinput_device_has_capability(device,
+	litest_assert(libinput_device_has_capability(device,
 						 LIBINPUT_DEVICE_CAP_TOUCH));
 }
 END_TEST
@@ -706,7 +702,7 @@ START_TEST(touch_protocol_a_touch)
 	litest_drain_events(li);
 
 	litest_touch_down(dev, 0, 5, 95);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	ev = libinput_get_event(li);
 	tev = litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_DOWN);
@@ -721,7 +717,7 @@ START_TEST(touch_protocol_a_touch)
 	libinput_event_destroy(ev);
 
 	litest_touch_move_to(dev, 0, 10, 90, 90, 10, 20);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	while ((ev = libinput_get_event(li))) {
 		if (libinput_event_get_type(ev) ==
@@ -729,15 +725,15 @@ START_TEST(touch_protocol_a_touch)
 			libinput_event_destroy(ev);
 			continue;
 		}
-		ck_assert_int_eq(libinput_event_get_type(ev),
-				 LIBINPUT_EVENT_TOUCH_MOTION);
+
+		litest_assert_event_type(ev, LIBINPUT_EVENT_TOUCH_MOTION);
 
 		tev = libinput_event_get_touch_event(ev);
 		x = libinput_event_touch_get_x(tev);
 		y = libinput_event_touch_get_y(tev);
 
-		ck_assert_int_gt(x, oldx);
-		ck_assert_int_lt(y, oldy);
+		litest_assert_int_gt(x, oldx);
+		litest_assert_int_lt(y, oldy);
 
 		oldx = x;
 		oldy = y;
@@ -746,7 +742,7 @@ START_TEST(touch_protocol_a_touch)
 	}
 
 	litest_touch_up(dev, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	ev = libinput_get_event(li);
 	litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_UP);
 	libinput_event_destroy(ev);
@@ -766,7 +762,7 @@ START_TEST(touch_protocol_a_2fg_touch)
 	litest_touch_down(dev, 0, 5, 95);
 	litest_touch_down(dev, 1, 95, 5);
 
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_down_frame(li);
 
 	ev = libinput_get_event(li);
@@ -780,11 +776,11 @@ START_TEST(touch_protocol_a_2fg_touch)
 	for (pos = 10; pos < 100; pos += 10) {
 		litest_touch_move(dev, 0, pos, 100 - pos);
 		litest_touch_move(dev, 1, 100 - pos, pos);
-		libinput_dispatch(li);
+		litest_dispatch(li);
 
 		ev = libinput_get_event(li);
 		tev = libinput_event_get_touch_event(ev);
-		ck_assert_int_eq(libinput_event_touch_get_slot(tev), 0);
+		litest_assert_int_eq(libinput_event_touch_get_slot(tev), 0);
 		libinput_event_destroy(ev);
 
 		ev = libinput_get_event(li);
@@ -793,7 +789,7 @@ START_TEST(touch_protocol_a_2fg_touch)
 
 		ev = libinput_get_event(li);
 		tev = libinput_event_get_touch_event(ev);
-		ck_assert_int_eq(libinput_event_touch_get_slot(tev), 1);
+		litest_assert_int_eq(libinput_event_touch_get_slot(tev), 1);
 		libinput_event_destroy(ev);
 
 		ev = libinput_get_event(li);
@@ -802,11 +798,11 @@ START_TEST(touch_protocol_a_2fg_touch)
 	}
 
 	litest_touch_up(dev, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_up_frame(li);
 
 	litest_touch_up(dev, 1);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_up_frame(li);
 }
 END_TEST
@@ -847,8 +843,8 @@ START_TEST(touch_initial_state)
 		litest_touch_down(dev, 0, 70, 60);
 	litest_touch_up(dev, 0);
 
-	libinput_dispatch(libinput1);
-	libinput_dispatch(libinput2);
+	litest_dispatch(libinput1);
+	litest_dispatch(libinput2);
 
 	while (libinput_next_event_type(libinput1)) {
 		ev1 = libinput_get_event(libinput1);
@@ -857,17 +853,17 @@ START_TEST(touch_initial_state)
 		t1 = litest_is_touch_event(ev1, 0);
 		t2 = litest_is_touch_event(ev2, 0);
 
-		ck_assert_int_eq(libinput_event_get_type(ev1),
+		litest_assert_int_eq(libinput_event_get_type(ev1),
 				 libinput_event_get_type(ev2));
 
 		if (libinput_event_get_type(ev1) == LIBINPUT_EVENT_TOUCH_UP ||
 		    libinput_event_get_type(ev1) == LIBINPUT_EVENT_TOUCH_FRAME)
 			break;
 
-		ck_assert_int_eq(libinput_event_touch_get_x(t1),
-				 libinput_event_touch_get_x(t2));
-		ck_assert_int_eq(libinput_event_touch_get_y(t1),
-				 libinput_event_touch_get_y(t2));
+		litest_assert_double_eq(libinput_event_touch_get_x(t1),
+					libinput_event_touch_get_x(t2));
+		litest_assert_double_eq(libinput_event_touch_get_y(t1),
+					libinput_event_touch_get_y(t2));
 
 		libinput_event_destroy(ev1);
 		libinput_event_destroy(ev2);
@@ -893,12 +889,12 @@ START_TEST(touch_time_usec)
 	litest_drain_events(dev->libinput);
 
 	litest_touch_down(dev, 0, 10, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	event = libinput_get_event(li);
 	tev = litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_DOWN);
 	time_usec = libinput_event_touch_get_time_usec(tev);
-	ck_assert_int_eq(libinput_event_touch_get_time(tev),
+	litest_assert_int_eq(libinput_event_touch_get_time(tev),
 			 (uint32_t) (time_usec / 1000));
 	libinput_event_destroy(event);
 }
@@ -920,7 +916,7 @@ START_TEST(touch_fuzz)
 	litest_event(dev, EV_ABS, ABS_MT_POSITION_Y, y);
 	litest_event(dev, EV_KEY, BTN_TOUCH, 1);
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	event = libinput_get_event(li);
 	litest_is_touch_event(event, LIBINPUT_EVENT_TOUCH_DOWN);
@@ -942,7 +938,7 @@ START_TEST(touch_fuzz)
 		litest_event(dev, EV_ABS, ABS_MT_POSITION_X, x);
 		litest_event(dev, EV_ABS, ABS_MT_POSITION_Y, y);
 		litest_event(dev, EV_SYN, SYN_REPORT, 0);
-		libinput_dispatch(li);
+		litest_dispatch(li);
 		litest_assert_empty_queue(li);
 	}
 }
@@ -953,21 +949,21 @@ START_TEST(touch_fuzz_property)
 	struct litest_device *dev = litest_current_device();
 	struct udev_device *d;
 	const char *prop;
-	int fuzz;
+	int fuzz = 0;
 
-	ck_assert_int_eq(libevdev_get_abs_fuzz(dev->evdev, ABS_X), 0);
-	ck_assert_int_eq(libevdev_get_abs_fuzz(dev->evdev, ABS_Y), 0);
+	litest_assert_int_eq(libevdev_get_abs_fuzz(dev->evdev, ABS_X), 0);
+	litest_assert_int_eq(libevdev_get_abs_fuzz(dev->evdev, ABS_Y), 0);
 
 	d = libinput_device_get_udev_device(dev->libinput_device);
 	prop = udev_device_get_property_value(d, "LIBINPUT_FUZZ_00");
-	ck_assert_notnull(prop);
-	ck_assert(safe_atoi(prop, &fuzz));
-	ck_assert_int_eq(fuzz, 10); /* device-specific */
+	litest_assert_notnull(prop);
+	litest_assert(safe_atoi(prop, &fuzz));
+	litest_assert_int_eq(fuzz, 10); /* device-specific */
 
 	prop = udev_device_get_property_value(d, "LIBINPUT_FUZZ_01");
-	ck_assert_notnull(prop);
-	ck_assert(safe_atoi(prop, &fuzz));
-	ck_assert_int_eq(fuzz, 12); /* device-specific */
+	litest_assert_notnull(prop);
+	litest_assert(safe_atoi(prop, &fuzz));
+	litest_assert_int_eq(fuzz, 12); /* device-specific */
 
 	udev_device_unref(d);
 }
@@ -989,7 +985,7 @@ START_TEST(touch_release_on_unplug)
 
 	/* Touch is still down when device is removed, expect a release */
 	litest_delete_device(dev);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	ev = libinput_get_event(li);
 	litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_CANCEL);
@@ -1026,21 +1022,21 @@ START_TEST(touch_invalid_range_over)
 	litest_event(dev, EV_ABS, ABS_MT_POSITION_Y, 5000);
 	litest_event(dev, EV_KEY, BTN_TOUCH, 1);
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	/* Expect the mm to be correct regardless */
 	ev = libinput_get_event(li);
 	t = litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_DOWN);
 	x = libinput_event_touch_get_x(t);
 	y = libinput_event_touch_get_y(t);
-	ck_assert_double_eq(x, 300); /* device has resolution 10 */
-	ck_assert_double_eq(y, 300); /* device has resolution 10 */
+	litest_assert_double_eq(x, 300); /* device has resolution 10 */
+	litest_assert_double_eq(y, 300); /* device has resolution 10 */
 
 	/* Expect the percentage to be correct too, even if > 100% */
 	x = libinput_event_touch_get_x_transformed(t, 100);
 	y = libinput_event_touch_get_y_transformed(t, 100);
-	ck_assert_double_eq(round(x), 200);
-	ck_assert_double_eq(round(y), 120);
+	litest_assert_double_eq(round(x), 200);
+	litest_assert_double_eq(round(y), 120);
 
 	libinput_event_destroy(ev);
 }
@@ -1065,21 +1061,21 @@ START_TEST(touch_invalid_range_under)
 	litest_event(dev, EV_ABS, ABS_MT_POSITION_Y, 1000);
 	litest_event(dev, EV_KEY, BTN_TOUCH, 1);
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	/* Expect the mm to be correct regardless */
 	ev = libinput_get_event(li);
 	t = litest_is_touch_event(ev, LIBINPUT_EVENT_TOUCH_DOWN);
 	x = libinput_event_touch_get_x(t);
 	y = libinput_event_touch_get_y(t);
-	ck_assert_double_eq(x, -150); /* device has resolution 10 */
-	ck_assert_double_eq(y, -100); /* device has resolution 10 */
+	litest_assert_double_eq(x, -150); /* device has resolution 10 */
+	litest_assert_double_eq(y, -100); /* device has resolution 10 */
 
 	/* Expect the percentage to be correct too, even if > 100% */
 	x = libinput_event_touch_get_x_transformed(t, 100);
 	y = libinput_event_touch_get_y_transformed(t, 100);
-	ck_assert_double_eq(round(x), -100);
-	ck_assert_double_eq(round(y), -40);
+	litest_assert_double_eq(round(x), -100);
+	litest_assert_double_eq(round(y), -40);
 
 	libinput_event_destroy(ev);
 }
@@ -1090,7 +1086,7 @@ START_TEST(touch_count_st)
 	struct litest_device *dev = litest_current_device();
 	struct libinput_device *device = dev->libinput_device;
 
-	ck_assert_int_eq(libinput_device_touch_get_touch_count(device), 1);
+	litest_assert_int_eq(libinput_device_touch_get_touch_count(device), 1);
 }
 END_TEST
 
@@ -1100,7 +1096,7 @@ START_TEST(touch_count_mt)
 	struct libinput_device *device = dev->libinput_device;
 	struct libevdev *evdev = dev->evdev;
 
-	ck_assert_int_eq(libinput_device_touch_get_touch_count(device),
+	litest_assert_int_eq(libinput_device_touch_get_touch_count(device),
 			 libevdev_get_num_slots(evdev));
 }
 END_TEST
@@ -1110,7 +1106,7 @@ START_TEST(touch_count_unknown)
 	struct litest_device *dev = litest_current_device();
 	struct libinput_device *device = dev->libinput_device;
 
-	ck_assert_int_eq(libinput_device_touch_get_touch_count(device), 0);
+	litest_assert_int_eq(libinput_device_touch_get_touch_count(device), 0);
 }
 END_TEST
 
@@ -1119,7 +1115,7 @@ START_TEST(touch_count_invalid)
 	struct litest_device *dev = litest_current_device();
 	struct libinput_device *device = dev->libinput_device;
 
-	ck_assert_int_eq(libinput_device_touch_get_touch_count(device), -1);
+	litest_assert_int_eq(libinput_device_touch_get_touch_count(device), -1);
 }
 END_TEST
 
@@ -1139,14 +1135,14 @@ START_TEST(touch_palm_detect_tool_palm)
 	};
 
 	if (!touch_has_tool_palm(dev))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_touch_down(dev, 0, 50, 50);
 	litest_touch_move_to(dev, 0, 50, 50, 70, 70, 10);
 	litest_drain_events(li);
 
 	litest_touch_move_to_extended(dev, 0, 50, 50, 70, 70, axes, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_cancel(li);
 
 	litest_touch_move_to(dev, 0, 70, 70, 50, 40, 10);
@@ -1166,14 +1162,14 @@ START_TEST(touch_palm_detect_tool_palm_on_off)
 	};
 
 	if (!touch_has_tool_palm(dev))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_touch_down(dev, 0, 50, 50);
 	litest_touch_move_to(dev, 0, 50, 50, 70, 70, 10);
 	litest_drain_events(li);
 
 	litest_touch_move_to_extended(dev, 0, 50, 50, 70, 70, axes, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_cancel(li);
 
 	litest_touch_move_to(dev, 0, 70, 70, 50, 40, 10);
@@ -1197,7 +1193,7 @@ START_TEST(touch_palm_detect_tool_palm_keep_type)
 	};
 
 	if (!touch_has_tool_palm(dev))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_touch_down(dev, 0, 50, 50);
 	litest_touch_move_to(dev, 0, 50, 50, 70, 70, 10);
@@ -1228,7 +1224,7 @@ START_TEST(touch_palm_detect_tool_palm_2fg)
 	};
 
 	if (!touch_has_tool_palm(dev))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_touch_down(dev, 0, 50, 50);
 	litest_touch_down(dev, 1, 50, 50);
@@ -1236,15 +1232,15 @@ START_TEST(touch_palm_detect_tool_palm_2fg)
 	litest_drain_events(li);
 
 	litest_touch_move_to_extended(dev, 0, 50, 50, 70, 70, axes, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_cancel(li);
 
 	litest_touch_move_to(dev, 1, 50, 50, 70, 70, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_motion_frame(li);
 
 	litest_touch_up(dev, 1);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_up_frame(li);
 
 	litest_touch_move_to(dev, 0, 70, 70, 50, 40, 10);
@@ -1264,7 +1260,7 @@ START_TEST(touch_palm_detect_tool_palm_on_off_2fg)
 	};
 
 	if (!touch_has_tool_palm(dev))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_touch_down(dev, 0, 50, 50);
 	litest_touch_down(dev, 1, 50, 50);
@@ -1272,11 +1268,11 @@ START_TEST(touch_palm_detect_tool_palm_on_off_2fg)
 	litest_drain_events(li);
 
 	litest_touch_move_to_extended(dev, 0, 50, 50, 70, 70, axes, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_cancel(li);
 
 	litest_touch_move_to(dev, 1, 50, 50, 70, 70, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_motion_frame(li);
 
 	litest_axis_set_value(axes, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
@@ -1284,11 +1280,11 @@ START_TEST(touch_palm_detect_tool_palm_on_off_2fg)
 	litest_assert_empty_queue(li);
 
 	litest_touch_move_to(dev, 1, 70, 70, 50, 40, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_motion_frame(li);
 
 	litest_touch_up(dev, 1);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_up_frame(li);
 
 	litest_touch_move_to(dev, 0, 70, 70, 50, 40, 10);
@@ -1308,7 +1304,7 @@ START_TEST(touch_palm_detect_tool_palm_keep_type_2fg)
 	};
 
 	if (!touch_has_tool_palm(dev))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_touch_down(dev, 0, 50, 50);
 	litest_touch_down(dev, 1, 50, 50);
@@ -1318,7 +1314,7 @@ START_TEST(touch_palm_detect_tool_palm_keep_type_2fg)
 	litest_drain_events(li);
 
 	litest_touch_move_to(dev, 1, 50, 50, 70, 70, 10);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_motion_frame(li);
 
 	/* ABS_MT_TOOL_TYPE never reset to finger, so a new touch
@@ -1333,7 +1329,7 @@ START_TEST(touch_palm_detect_tool_palm_keep_type_2fg)
 	litest_assert_empty_queue(li);
 
 	litest_touch_up(dev, 1);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 	litest_assert_touch_up_frame(li);
 }
 END_TEST

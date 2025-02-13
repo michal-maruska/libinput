@@ -100,6 +100,15 @@ safe_strdup(const char *str)
 }
 
 /**
+ * NULL-safe version of strlen
+ */
+static inline size_t
+safe_strlen(const char *str)
+{
+	return str ? strlen(str) : 0;
+}
+
+/**
  * Simple wrapper for asprintf that ensures the passed in-pointer is set
  * to NULL upon error.
  * The standard asprintf() call does not guarantee the passed in pointer
@@ -266,6 +275,10 @@ char **strv_from_argv(int argc, char **argv);
 char **strv_from_string(const char *in, const char *separator, size_t *num_elements);
 char *strv_join(char **strv, const char *joiner);
 
+typedef int (*strv_foreach_callback_t)(const char *str, size_t index, void *data);
+int strv_for_each(const char **strv, strv_foreach_callback_t func, void *data);
+int strv_for_each_n(const char **strv, size_t max, strv_foreach_callback_t func, void *data);
+
 static inline void
 strv_free(char **strv) {
 	char **s = strv;
@@ -406,7 +419,7 @@ strstrip(const char *input, const char *what)
 
 	last = str;
 
-	for (char *c = str; *c != '\0'; c++) {
+	for (char *c = str; c && *c != '\0'; c++) {
 		if (!strchr(what, *c))
 			last = c + 1;
 	}

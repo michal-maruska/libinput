@@ -28,7 +28,7 @@ options exposed by libinput are:
 - how many tapping fingers are supported by this device
 - a toggle to enable/disable tapping
 - a toggle to enable/disable tap-and-drag, see :ref:`tapndrag`.
-- a toggle to enable/disable tap-and-drag drag lock see :ref:`tapndrag`
+- a toggle to enable/disable tap-and-drag drag lock, see :ref:`tapndrag`
 - The default order is 1, 2, 3 finger tap mapping to left, right, middle
   click, respectively. This order can be changed to left, middle, right click,
   respectively.
@@ -191,3 +191,16 @@ the given threshold is met, and will reach the maximum logical pressure
 before the maximum hardware-supported pressure is reached.
 
 See :ref:`tablet-pressure-range` for more info.
+
+------------------------------------------------------------------------------
+Area configuration
+------------------------------------------------------------------------------
+
+Area configuration is available for some indirect input devices such as
+graphics tablets. This configuration allows reducing the active area of
+such a device to a subset of the physically possible area.
+
+An example use-case for this is to match the aspect ratio of the device to that
+of the screen.
+
+See :ref:`tablet-area` for more info.

@@ -21,44 +21,59 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#pragma once
-
 #include "config.h"
 
 #include <errno.h>
-#include <libgen.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include <sys/stat.h>
-
-#include "util-strings.h"
-
-static inline int
-mkdir_p(const char *dir)
-{
-	char *path, *parent;
-	int rc;
-
-	if (streq(dir, "/"))
-		return 0;
-
-	path = safe_strdup(dir);
-	parent = dirname(path);
-
-	if ((rc = mkdir_p(parent)) < 0)
-		return rc;
-
-	rc = mkdir(dir, 0755);
-
-	free(path);
-
-	return (rc == -1 && errno != EEXIST) ? -errno : 0;
-}
+#include <sys/wait.h>
 
 static inline void
-xclose(int *fd)
+backtrace_print(FILE *fp)
 {
-	if (*fd > -1) {
-		close(*fd);
-		*fd = -1;
+#if HAVE_GSTACK
+	pid_t parent, child;
+	int pipefd[2];
+
+	if (pipe(pipefd) == -1)
+		return;
+
+	parent = getpid();
+	child = fork();
+
+	if (child == 0) {
+		char pid[8];
+
+		close(pipefd[0]);
+		dup2(pipefd[1], STDOUT_FILENO);
+
+		sprintf(pid, "%d", parent);
+
+		execlp("gstack", "gstack", pid, NULL);
+		exit(errno);
 	}
+
+	/* parent */
+	char buf[1024];
+	int status, nread;
+
+	close(pipefd[1]);
+	waitpid(child, &status, 0);
+
+	status = WEXITSTATUS(status);
+	if (status != 0) {
+		fprintf(fp, "ERROR: gstack failed, no backtrace available: %s\n",
+			   strerror(status));
+	} else {
+		fprintf(fp, "\nBacktrace:\n");
+		while ((nread = read(pipefd[0], buf, sizeof(buf) - 1)) > 0) {
+			buf[nread] = '\0';
+			fprintf(stderr, "%s", buf);
+		}
+		fprintf(fp, "\n");
+	}
+	close(pipefd[0]);
+#endif
 }

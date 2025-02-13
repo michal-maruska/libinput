@@ -165,6 +165,10 @@ def print_events(devnode, indent, evs):
                 e.value,
             )
         )
+        if e.type == libevdev.EV_SYN:
+            print(
+                "{}: ------------------------------------------------".format(devnode)
+            )
 
 
 def collect_events(frame):
@@ -273,21 +277,23 @@ def loop(args, recording):
         else:
             input("Hit enter to start replaying")
 
-        processes = []
-        for d in devices:
-            p = multiprocessing.Process(target=wrap, args=(replay, d, args.verbose))
-            processes.append(p)
+        try:
+            processes = [
+                multiprocessing.Process(target=wrap, args=(replay, d, args.verbose))
+                for d in devices
+            ]
 
-        for p in processes:
-            p.start()
+            for p in processes:
+                p.start()
 
-        for p in processes:
-            p.join()
+            for p in processes:
+                p.join()
 
-        del processes
-
-        if args.once:
-            break
+            if args.once:
+                break
+        except KeyboardInterrupt:
+            print("Event replay interrupted, press Ctrl+C again to exit.")
+            print("Note that the device may not be in a neutral state now.")
 
 
 def create_device_quirk(device):

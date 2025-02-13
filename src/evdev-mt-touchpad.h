@@ -160,8 +160,11 @@ enum tp_gesture_state {
 	GESTURE_STATE_HOLD,
 	GESTURE_STATE_HOLD_AND_MOTION,
 	GESTURE_STATE_POINTER_MOTION,
+	GESTURE_STATE_SCROLL_START,
 	GESTURE_STATE_SCROLL,
+	GESTURE_STATE_PINCH_START,
 	GESTURE_STATE_PINCH,
+	GESTURE_STATE_SWIPE_START,
 	GESTURE_STATE_SWIPE,
 };
 
@@ -350,7 +353,6 @@ struct tp_dispatch {
 	struct {
 		struct libinput_device_config_gesture config;
 		bool enabled;
-		bool started;
 		unsigned int finger_count;
 		unsigned int finger_count_pending;
 		struct libinput_timer finger_count_switch_timer;
@@ -435,7 +437,7 @@ struct tp_dispatch {
 		enum libinput_config_tap_button_map want_map;
 
 		bool drag_enabled;
-		bool drag_lock_enabled;
+		enum libinput_config_drag_lock_state drag_lock;
 
 		unsigned int nfingers_down;	/* number of fingers down for tapping (excl. thumb/palm) */
 	} tap;
@@ -725,7 +727,7 @@ void
 tp_gesture_cancel_motion_gestures(struct tp_dispatch *tp, uint64_t time);
 
 void
-tp_gesture_handle_state(struct tp_dispatch *tp, uint64_t time);
+tp_gesture_update_finger_state(struct tp_dispatch *tp, uint64_t time);
 
 void
 tp_gesture_post_events(struct tp_dispatch *tp, uint64_t time,

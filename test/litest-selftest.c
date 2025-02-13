@@ -2,12 +2,16 @@
 
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <check.h>
 #include <signal.h>
 
 #include <valgrind/valgrind.h>
 
 #include "litest.h"
+/* This is a bit messy but until we've completely switched over
+ * to the litest runner it's easier like this */
+#undef START_TEST
+#undef END_TEST
+#include <check.h>
 
 START_TEST(litest_assert_trigger)
 {
@@ -293,58 +297,107 @@ START_TEST(litest_ptr_notnull_trigger_NULL)
 }
 END_TEST
 
-START_TEST(ck_double_eq_and_ne)
+START_TEST(litest_double_eq_and_ne)
 {
-	ck_assert_double_eq(0.4,0.4);
-	ck_assert_double_eq(0.4,0.4 + 1E-6);
-	ck_assert_double_ne(0.4,0.4 + 1E-3);
+	litest_assert_double_eq(0.4,0.4);
+	litest_assert_double_eq(0.4,0.4 + 1E-6);
+	litest_assert_double_ne(0.4,0.4 + 1E-3);
+
+	litest_assert_double_eq_epsilon(0.4, 0.5, 0.1);
+	litest_assert_double_eq_epsilon(0.4, 0.5, 0.2);
+	litest_assert_double_ne_epsilon(0.4, 0.6, 0.1);
+	litest_assert_double_ne_epsilon(0.4, 0.41, 0.005);
 }
 END_TEST
 
-START_TEST(ck_double_lt_gt)
+START_TEST(litest_double_lt_gt)
 {
-	ck_assert_double_lt(12.0,13.0);
-	ck_assert_double_gt(15.4,13.0);
-	ck_assert_double_le(12.0,12.0);
-	ck_assert_double_le(12.0,20.0);
-	ck_assert_double_ge(12.0,12.0);
-	ck_assert_double_ge(20.0,12.0);
+	litest_assert_double_lt(12.0,13.0);
+	litest_assert_double_gt(15.4,13.0);
+	litest_assert_double_le(12.0,12.0);
+	litest_assert_double_le(12.0,20.0);
+	litest_assert_double_ge(12.0,12.0);
+	litest_assert_double_ge(20.0,12.0);
 }
 END_TEST
 
-START_TEST(ck_double_eq_fails)
+START_TEST(litest_double_eq_fails)
 {
-	ck_assert_double_eq(0.41,0.4);
+	litest_assert_double_eq(0.41,0.4);
 }
 END_TEST
 
-START_TEST(ck_double_ne_fails)
+START_TEST(litest_double_eq_epsilon_fails)
 {
-	ck_assert_double_ne(0.4 + 1E-7,0.4);
+	litest_assert_double_eq_epsilon(0.4,0.5,0.05);
 }
 END_TEST
 
-START_TEST(ck_double_lt_fails)
+START_TEST(litest_double_ne_fails)
 {
-	ck_assert_double_lt(6,5);
+	litest_assert_double_ne(0.4 + 1E-7,0.4);
 }
 END_TEST
 
-START_TEST(ck_double_gt_fails)
+START_TEST(litest_double_ne_epsilon_fails)
 {
-	ck_assert_double_gt(5,6);
+	litest_assert_double_ne_epsilon(0.4, 0.5, 0.2);
 }
 END_TEST
 
-START_TEST(ck_double_le_fails)
+START_TEST(litest_double_lt_fails)
 {
-	ck_assert_double_le(6,5);
+	litest_assert_double_lt(6.0, 5.0);
 }
 END_TEST
 
-START_TEST(ck_double_ge_fails)
+START_TEST(litest_double_gt_fails)
 {
-	ck_assert_double_ge(5,6);
+	litest_assert_double_gt(5.0, 6.0);
+}
+END_TEST
+
+START_TEST(litest_double_le_fails)
+{
+	litest_assert_double_le(6.0, 5.0);
+}
+END_TEST
+
+START_TEST(litest_double_ge_fails)
+{
+	litest_assert_double_ge(5.0, 6.0);
+}
+END_TEST
+
+START_TEST(litest_string_eq_ne)
+{
+	litest_assert_str_eq("foo", "foo");
+	litest_assert_str_ne("foo", "bar");
+	litest_assert_str_ne("foo", "foobar");
+	litest_assert_str_ne("foobar", "foo");
+
+	const char *a1 = "a";
+	const char *a2 = "a";
+	const char *b = "b";
+
+	litest_assert_str_eq(NULL, NULL);
+	litest_assert_str_eq(a1, a2);
+	litest_assert_str_ne(a1, b);
+	litest_assert_str_ne(a2, b);
+	litest_assert_str_ne(a2, b);
+	litest_assert_str_ne(b, NULL);
+}
+END_TEST
+
+START_TEST(litest_string_eq_fails)
+{
+	litest_assert_str_eq("foo", "bar");
+}
+END_TEST
+
+START_TEST(litest_string_ne_fails)
+{
+	litest_assert_str_ne("foo", "foo");
 }
 END_TEST
 
@@ -421,14 +474,22 @@ litest_assert_macros_suite(void)
 	suite_add_tcase(s, tc);
 
 	tc = tcase_create("double comparison ");
-	tcase_add_test(tc, ck_double_eq_and_ne);
-	tcase_add_test(tc, ck_double_lt_gt);
-	tcase_add_exit_test(tc, ck_double_eq_fails, 1);
-	tcase_add_exit_test(tc, ck_double_ne_fails, 1);
-	tcase_add_exit_test(tc, ck_double_lt_fails, 1);
-	tcase_add_exit_test(tc, ck_double_gt_fails, 1);
-	tcase_add_exit_test(tc, ck_double_le_fails, 1);
-	tcase_add_exit_test(tc, ck_double_ge_fails, 1);
+	tcase_add_test(tc, litest_double_eq_and_ne);
+	tcase_add_test(tc, litest_double_lt_gt);
+	tcase_add_test_raise_signal(tc, litest_double_eq_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_double_eq_epsilon_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_double_ne_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_double_ne_epsilon_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_double_lt_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_double_gt_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_double_le_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_double_ge_fails, SIGABRT);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("string comparison ");
+	tcase_add_test(tc, litest_string_eq_ne);
+	tcase_add_test_raise_signal(tc, litest_string_eq_fails, SIGABRT);
+	tcase_add_test_raise_signal(tc, litest_string_ne_fails, SIGABRT);
 	suite_add_tcase(s, tc);
 
 	tc = tcase_create("zalloc ");

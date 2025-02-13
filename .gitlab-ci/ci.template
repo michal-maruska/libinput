@@ -36,7 +36,7 @@
 # <distribution>:<version>@activity:
 #  e.g. fedora:31@build-default
 
-.templates_sha: &template_sha dd90ac0d7a03b574eb4f18d7358083f0c97825f3
+.templates_sha: &template_sha e195d80f35b45cc73668be3767b923fd76c70ed5
 
 include:
   - project: 'freedesktop/ci-templates'
@@ -118,6 +118,7 @@ variables:
     expire_in: 1 week
     paths:
       - $MESON_BUILDDIR/meson-logs
+      - $MESON_BUILDDIR/valgrind.*.log
     reports:
       junit: $MESON_BUILDDIR/*junit*.xml
 
@@ -203,6 +204,20 @@ check-whitespace:
     - sed -i '/^$/N;/^\n$/D' $(git ls-files src/*.{h,c} tools/*.{h,c} udev/*.c)
     - git diff --exit-code || (echo "ERROR - Duplicated empty lines, please fix" && false)
 
+#
+# pre-commit hooks
+#
+
+pre-commit-hooks:
+  extends:
+    - .fdo.ci-fairy
+  stage: sanity check
+  script:
+    - python3 -m venv venv
+    - source venv/bin/activate
+    - pip3 install pre-commit
+    - pre-commit run --all-files || true
+    - git diff --exit-code || (echo "ERROR - Code style errors found, please fix" && false)
 
 #################################################################
 #                                                               #
@@ -386,11 +401,11 @@ check-whitespace:
   variables:
     # remove the global --no-suite=hardware
     MESON_TEST_ARGS: ''
+    LITEST_JOBS: 4
   before_script:
     - if ! [[ -z $SUITE_NAMES ]]; then SUITES=$(echo $SUITE_NAMES | sed 's/\([^ ]*\)/libinput-test-suite-\1/g'); fi
     - echo "Testing $SUITES"
     - export MESON_TEST_ARGS="$MESON_TEST_ARGS $SUITES"
-    - export LITEST_JOBS="2"
 
 
 {# qemu tests are only done for the latest version of any distribution #}
@@ -430,7 +445,11 @@ vm-valgrind-{{suite.name}}:
     - vm-{{suite.name}}
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
-    LITEST_JOBS: 4
+    LITEST_JOBS: 0
+  retry:
+    max: 2
+  rules:
+    - if: $GITLAB_USER_LOGIN != "marge-bot"
 
 {% endfor %}
 {% endfor %}{# for if distro.use_for_qemu_tests #}

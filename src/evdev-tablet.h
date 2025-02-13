@@ -27,6 +27,10 @@
 
 #include "evdev.h"
 
+#if !HAVE_LIBWACOM
+typedef void * WacomDevice;
+#endif
+
 #define LIBINPUT_TABLET_TOOL_AXIS_NONE 0
 #define LIBINPUT_TOOL_NONE 0
 #define LIBINPUT_TABLET_TOOL_TYPE_MAX LIBINPUT_TABLET_TOOL_TYPE_LENS
@@ -47,6 +51,7 @@ enum tablet_status {
 	TABLET_TOOL_ENTERING_CONTACT	= bit(9),
 	TABLET_TOOL_LEAVING_CONTACT	= bit(10),
 	TABLET_TOOL_OUT_OF_RANGE	= bit(11),
+	TABLET_TOOL_OUTSIDE_AREA        = bit(12),
 };
 
 struct button_state {
@@ -89,6 +94,13 @@ struct tablet_dispatch {
 	uint32_t cursor_proximity_threshold;
 
 	struct libinput_device_config_calibration calibration;
+	struct {
+		struct libinput_device_config_area config;
+		struct libinput_config_area_rectangle rect;
+		struct libinput_config_area_rectangle want_rect;
+		struct input_absinfo x;
+		struct input_absinfo y;
+	} area;
 
 	/* The paired touch device on devices with both pen & touch */
 	struct evdev_device *touch_device;

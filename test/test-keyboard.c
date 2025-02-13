@@ -23,7 +23,6 @@
 
 #include "config.h"
 
-#include <check.h>
 #include <stdio.h>
 
 #include "libinput-util.h"
@@ -55,7 +54,7 @@ START_TEST(keyboard_seat_key_count)
 	for (i = 0; i < num_devices; ++i)
 		litest_keyboard_key(devices[i], KEY_A, true);
 
-	libinput_dispatch(libinput);
+	litest_dispatch(libinput);
 	while ((ev = libinput_get_event(libinput))) {
 		kev = litest_is_keyboard_event(ev,
 					       KEY_A,
@@ -64,35 +63,36 @@ START_TEST(keyboard_seat_key_count)
 		++expected_key_button_count;
 		seat_key_count =
 			libinput_event_keyboard_get_seat_key_count(kev);
-		ck_assert_int_eq(expected_key_button_count, seat_key_count);
+		litest_assert_int_eq(expected_key_button_count, seat_key_count);
 
 		libinput_event_destroy(ev);
-		libinput_dispatch(libinput);
+		litest_dispatch(libinput);
 	}
 
-	ck_assert_int_eq(seat_key_count, num_devices);
+	litest_assert_int_eq(seat_key_count, num_devices);
 
 	for (i = 0; i < num_devices; ++i)
 		litest_keyboard_key(devices[i], KEY_A, false);
 
-	libinput_dispatch(libinput);
+	litest_dispatch(libinput);
 	while ((ev = libinput_get_event(libinput))) {
 		kev = libinput_event_get_keyboard_event(ev);
-		ck_assert_notnull(kev);
-		ck_assert_int_eq(libinput_event_keyboard_get_key(kev), KEY_A);
-		ck_assert_int_eq(libinput_event_keyboard_get_key_state(kev),
+		litest_assert_notnull(kev);
+		litest_assert_int_eq(libinput_event_keyboard_get_key(kev),
+				     (unsigned int)KEY_A);
+		litest_assert_enum_eq(libinput_event_keyboard_get_key_state(kev),
 				 LIBINPUT_KEY_STATE_RELEASED);
 
 		--expected_key_button_count;
 		seat_key_count =
 			libinput_event_keyboard_get_seat_key_count(kev);
-		ck_assert_int_eq(expected_key_button_count, seat_key_count);
+		litest_assert_int_eq(expected_key_button_count, seat_key_count);
 
 		libinput_event_destroy(ev);
-		libinput_dispatch(libinput);
+		litest_dispatch(libinput);
 	}
 
-	ck_assert_int_eq(seat_key_count, 0);
+	litest_assert_int_eq(seat_key_count, 0);
 
 	for (i = 0; i < num_devices; ++i)
 		litest_delete_device(devices[i]);
@@ -138,20 +138,19 @@ START_TEST(keyboard_ignore_no_pressed_release)
 	litest_keyboard_key(dev, KEY_A, true);
 	litest_keyboard_key(dev, KEY_A, false);
 
-	libinput_dispatch(libinput);
+	litest_dispatch(libinput);
 
 	ARRAY_FOR_EACH(expected_states, state) {
 		event = libinput_get_event(libinput);
-		ck_assert_notnull(event);
-		ck_assert_int_eq(libinput_event_get_type(event),
-				 LIBINPUT_EVENT_KEYBOARD_KEY);
+		litest_assert_notnull(event);
+		litest_assert_event_type(event, LIBINPUT_EVENT_KEYBOARD_KEY);
 		kevent = libinput_event_get_keyboard_event(event);
-		ck_assert_int_eq(libinput_event_keyboard_get_key(kevent),
-				 KEY_A);
-		ck_assert_int_eq(libinput_event_keyboard_get_key_state(kevent),
+		litest_assert_int_eq(libinput_event_keyboard_get_key(kevent),
+				     (unsigned int)KEY_A);
+		litest_assert_int_eq(libinput_event_keyboard_get_key_state(kevent),
 				 *state);
 		libinput_event_destroy(event);
-		libinput_dispatch(libinput);
+		litest_dispatch(libinput);
 	}
 
 	litest_assert_empty_queue(libinput);
@@ -209,7 +208,7 @@ START_TEST(keyboard_key_auto_release)
 		litest_event(dev, EV_KEY, key, 1);
 		litest_event(dev, EV_SYN, SYN_REPORT, 0);
 
-		libinput_dispatch(libinput);
+		litest_dispatch(libinput);
 
 		event = libinput_get_event(libinput);
 		litest_is_keyboard_event(event,
@@ -226,7 +225,7 @@ START_TEST(keyboard_key_auto_release)
 	/* Mark all released keys until device is removed */
 	while (1) {
 		event = libinput_get_event(libinput);
-		ck_assert_notnull(event);
+		litest_assert_notnull(event);
 		type = libinput_event_get_type(event);
 
 		if (type == LIBINPUT_EVENT_DEVICE_REMOVED) {
@@ -234,27 +233,27 @@ START_TEST(keyboard_key_auto_release)
 			break;
 		}
 
-		ck_assert_int_eq(type, LIBINPUT_EVENT_KEYBOARD_KEY);
+		litest_assert_event_type(event, LIBINPUT_EVENT_KEYBOARD_KEY);
 		kevent = libinput_event_get_keyboard_event(event);
-		ck_assert_int_eq(libinput_event_keyboard_get_key_state(kevent),
-				 LIBINPUT_KEY_STATE_RELEASED);
+		litest_assert_enum_eq(libinput_event_keyboard_get_key_state(kevent),
+				      LIBINPUT_KEY_STATE_RELEASED);
 		key = libinput_event_keyboard_get_key(kevent);
 
 		valid_code = 0;
 		for (i = 0; i < ARRAY_LENGTH(keys); ++i) {
 			if (keys[i].code == key) {
-				ck_assert_int_eq(keys[i].released, 0);
+				litest_assert_int_eq(keys[i].released, 0);
 				keys[i].released = 1;
 				valid_code = 1;
 			}
 		}
-		ck_assert_int_eq(valid_code, 1);
+		litest_assert_int_eq(valid_code, 1);
 		libinput_event_destroy(event);
 	}
 
 	/* Check that all pressed keys has been released. */
 	for (i = 0; i < ARRAY_LENGTH(keys); ++i) {
-		ck_assert_int_eq(keys[i].released, 1);
+		litest_assert_int_eq(keys[i].released, 1);
 	}
 
 	litest_destroy_context(libinput);
@@ -268,14 +267,14 @@ START_TEST(keyboard_has_key)
 	unsigned int code;
 	int evdev_has, libinput_has;
 
-	ck_assert(libinput_device_has_capability(
+	litest_assert(libinput_device_has_capability(
 					 device,
 					 LIBINPUT_DEVICE_CAP_KEYBOARD));
 
 	for (code = 0; code < KEY_CNT; code++) {
 		evdev_has = libevdev_has_event_code(dev->evdev, EV_KEY, code);
 		libinput_has = libinput_device_keyboard_has_key(device, code);
-		ck_assert_int_eq(evdev_has, libinput_has);
+		litest_assert_int_eq(evdev_has, libinput_has);
 	}
 }
 END_TEST
@@ -289,11 +288,11 @@ START_TEST(keyboard_keys_bad_device)
 
 	if (libinput_device_has_capability(device,
 					   LIBINPUT_DEVICE_CAP_KEYBOARD))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	for (code = 0; code < KEY_CNT; code++) {
 		has_key = libinput_device_keyboard_has_key(device, code);
-		ck_assert_int_eq(has_key, -1);
+		litest_assert_int_eq(has_key, -1);
 	}
 }
 END_TEST
@@ -307,12 +306,12 @@ START_TEST(keyboard_time_usec)
 	uint64_t time_usec;
 
 	if (!libevdev_has_event_code(dev->evdev, EV_KEY, KEY_A))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_drain_events(dev->libinput);
 
 	litest_keyboard_key(dev, KEY_A, true);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	event = libinput_get_event(li);
 	kev = litest_is_keyboard_event(event,
@@ -320,7 +319,7 @@ START_TEST(keyboard_time_usec)
 				       LIBINPUT_KEY_STATE_PRESSED);
 
 	time_usec = libinput_event_keyboard_get_time_usec(kev);
-	ck_assert_int_eq(libinput_event_keyboard_get_time(kev),
+	litest_assert_int_eq(libinput_event_keyboard_get_time(kev),
 			 (uint32_t) (time_usec / 1000));
 
 	libinput_event_destroy(event);
@@ -348,7 +347,7 @@ START_TEST(keyboard_no_buttons)
 
 		litest_keyboard_key(dev, code, true);
 		litest_keyboard_key(dev, code, false);
-		libinput_dispatch(li);
+		litest_dispatch(li);
 
 		event = libinput_get_event(li);
 		litest_is_keyboard_event(event,
@@ -371,14 +370,14 @@ START_TEST(keyboard_frame_order)
 
 	if (!libevdev_has_event_code(dev->evdev, EV_KEY, KEY_A) ||
 	    !libevdev_has_event_code(dev->evdev, EV_KEY, KEY_LEFTSHIFT))
-		return;
+		return LITEST_NOT_APPLICABLE;
 
 	litest_drain_events(li);
 
 	litest_event(dev, EV_KEY, KEY_LEFTSHIFT, 1);
 	litest_event(dev, EV_KEY, KEY_A, 1);
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	litest_assert_key_event(li,
 				KEY_LEFTSHIFT,
@@ -388,7 +387,7 @@ START_TEST(keyboard_frame_order)
 	litest_event(dev, EV_KEY, KEY_LEFTSHIFT, 0);
 	litest_event(dev, EV_KEY, KEY_A, 0);
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	litest_assert_key_event(li,
 				KEY_LEFTSHIFT,
@@ -398,7 +397,7 @@ START_TEST(keyboard_frame_order)
 	litest_event(dev, EV_KEY, KEY_A, 1);
 	litest_event(dev, EV_KEY, KEY_LEFTSHIFT, 1);
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	litest_assert_key_event(li, KEY_A, LIBINPUT_KEY_STATE_PRESSED);
 	litest_assert_key_event(li,
@@ -408,14 +407,14 @@ START_TEST(keyboard_frame_order)
 	litest_event(dev, EV_KEY, KEY_A, 0);
 	litest_event(dev, EV_KEY, KEY_LEFTSHIFT, 0);
 	litest_event(dev, EV_SYN, SYN_REPORT, 0);
-	libinput_dispatch(li);
+	litest_dispatch(li);
 
 	litest_assert_key_event(li, KEY_A, LIBINPUT_KEY_STATE_RELEASED);
 	litest_assert_key_event(li,
 				KEY_LEFTSHIFT,
 				LIBINPUT_KEY_STATE_RELEASED);
 
-	libinput_dispatch(li);
+	litest_dispatch(li);
 }
 END_TEST
 
@@ -466,22 +465,22 @@ START_TEST(keyboard_no_scroll)
 	enum libinput_config_status status;
 
 	method = libinput_device_config_scroll_get_method(device);
-	ck_assert_int_eq(method, LIBINPUT_CONFIG_SCROLL_NO_SCROLL);
+	litest_assert_enum_eq(method, LIBINPUT_CONFIG_SCROLL_NO_SCROLL);
 	method = libinput_device_config_scroll_get_default_method(device);
-	ck_assert_int_eq(method, LIBINPUT_CONFIG_SCROLL_NO_SCROLL);
+	litest_assert_enum_eq(method, LIBINPUT_CONFIG_SCROLL_NO_SCROLL);
 
 	status = libinput_device_config_scroll_set_method(device,
 				 LIBINPUT_CONFIG_SCROLL_2FG);
-	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
+	litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
 	status = libinput_device_config_scroll_set_method(device,
 				 LIBINPUT_CONFIG_SCROLL_EDGE);
-	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
+	litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
 	status = libinput_device_config_scroll_set_method(device,
 				 LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN);
-	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
+	litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_UNSUPPORTED);
 	status = libinput_device_config_scroll_set_method(device,
 				 LIBINPUT_CONFIG_SCROLL_NO_SCROLL);
-	ck_assert_int_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
+	litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
 }
 END_TEST
 

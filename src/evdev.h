@@ -37,6 +37,7 @@
 #include "timer.h"
 #include "filter.h"
 #include "quirks.h"
+#include "util-input-event.h"
 
 /* The fake resolution value for abs devices without resolution */
 #define EVDEV_FAKE_RESOLUTION 1
@@ -649,20 +650,13 @@ evdev_middlebutton_is_available(struct libinput_device *device);
 enum libinput_config_middle_emulation_state
 evdev_middlebutton_get_default(struct libinput_device *device);
 
-static inline double
-evdev_convert_to_mm(const struct input_absinfo *absinfo, double v)
-{
-	double value = v - absinfo->minimum;
-	return value/absinfo->resolution;
-}
-
 static inline struct phys_coords
 evdev_convert_xy_to_mm(const struct evdev_device *device, int x, int y)
 {
 	struct phys_coords mm;
 
-	mm.x = evdev_convert_to_mm(device->abs.absinfo_x, x);
-	mm.y = evdev_convert_to_mm(device->abs.absinfo_y, y);
+	mm.x = absinfo_convert_to_mm(device->abs.absinfo_x, x);
+	mm.y = absinfo_convert_to_mm(device->abs.absinfo_y, y);
 
 	return mm;
 }
@@ -670,9 +664,6 @@ evdev_convert_xy_to_mm(const struct evdev_device *device, int x, int y)
 void
 evdev_init_left_handed(struct evdev_device *device,
 		       void (*change_to_left_handed)(struct evdev_device *));
-
-bool
-evdev_tablet_has_left_handed(struct evdev_device *device);
 
 static inline uint32_t
 evdev_to_left_handed(struct evdev_device *device,

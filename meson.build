@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.26.2',
+	version : '1.27.1',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.56.0')
@@ -115,6 +115,14 @@ if cc.has_header_symbol('dirent.h', 'versionsort', prefix : prefix)
 	config_h.set('HAVE_VERSIONSORT', '1')
 endif
 
+if cc.get_define('SYS_pidfd_open', prefix: '#include <sys/syscall.h>') != ''
+	config_h.set('HAVE_PIDFD_OPEN', '1')
+endif
+
+if cc.has_function('sigabbrev_np', prefix: '#define _GNU_SOURCE 1\n#include <string.h>')
+	config_h.set('HAVE_SIGABBREV_NP', '1')
+endif
+
 if not cc.has_header_symbol('errno.h', 'program_invocation_short_name', prefix : prefix)
 	if cc.has_header_symbol('stdlib.h', 'getprogname')
 		config_h.set('program_invocation_short_name', 'getprogname()')
@@ -162,6 +170,10 @@ have_libwacom = get_option('libwacom')
 config_h.set10('HAVE_LIBWACOM', have_libwacom)
 if have_libwacom
 	dep_libwacom = dependency('libwacom', version : '>= 0.27')
+	if cc.has_header_symbol('libwacom/libwacom.h', 'WACOM_BUTTON_DIAL_MODESWITCH',
+				dependencies : dep_libwacom)
+		config_h.set('HAVE_LIBWACOM_BUTTON_DIAL_MODESWITCH', '1')
+	endif
 else
 	dep_libwacom = declare_dependency()
 endif
@@ -255,6 +267,7 @@ endif
 # Basic compilation test to make sure the headers include and define all the
 # necessary bits.
 util_headers = [
+		'util-backtrace.h',
 		'util-bits.h',
 		'util-input-event.h',
 		'util-list.h',
@@ -263,6 +276,7 @@ util_headers = [
 		'util-matrix.h',
 		'util-prop-parsers.h',
 		'util-ratelimit.h',
+		'util-stringbuf.h',
 		'util-strings.h',
 		'util-time.h',
 ]
@@ -723,7 +737,7 @@ executable('libinput-test',
 # This is the test suite runner, we allow disabling that one because of
 # dependencies
 if get_option('tests')
-	dep_check = dependency('check', version : '>= 0.9.10')
+	dep_check = dependency('check', version : '>= 0.9.10', required: false)
 
 	gstack = find_program('gstack', required : false)
 	config_h.set10('HAVE_GSTACK', gstack.found())
@@ -836,13 +850,13 @@ if get_option('tests')
 		'test/litest-device-xen-virtual-pointer.c',
 		'test/litest-device-vmware-virtual-usb-mouse.c',
 		'test/litest-device-yubikey.c',
+		'test/litest-runner.c',
 		'test/litest.c',
 	]
 
 	dep_dl = cc.find_library('dl')
 	deps_litest = [
 		dep_libinput,
-		dep_check,
 		dep_udev,
 		dep_libevdev,
 		dep_dl,
@@ -860,26 +874,29 @@ if get_option('tests')
 				   '90-libinput-fuzz-override-litest.rules')
 
 	def_no_main = '-DLITEST_NO_MAIN'
-	def_disable_backtrace = '-DLITEST_DISABLE_BACKTRACE_LOGGING'
-	defs_litest_selftest = [
-		def_no_main,
-		def_disable_backtrace,
-		'-Wno-unused',
-	]
-	test_litest_selftest_sources = [
-		'test/litest-selftest.c',
-		'test/litest.c',
-	]
-	test_litest_selftest = executable('test-litest-selftest',
-					  test_litest_selftest_sources,
-					  include_directories : [includes_src, includes_include],
-					  dependencies : deps_litest,
-					  c_args : defs_litest_selftest,
-					  install : false)
-	test('test-litest-selftest',
-	     test_litest_selftest,
-	     suite : ['all'],
-	     timeout : 100)
+	if dep_check.found()
+		def_disable_backtrace = '-DLITEST_DISABLE_BACKTRACE_LOGGING'
+		defs_litest_selftest = [
+			def_no_main,
+			def_disable_backtrace,
+			'-Wno-unused',
+		]
+		test_litest_selftest_sources = [
+			'test/litest-selftest.c',
+			'test/litest-runner.c',
+			'test/litest.c',
+		]
+		test_litest_selftest = executable('test-litest-selftest',
+						  test_litest_selftest_sources,
+						  include_directories : [includes_src, includes_include],
+						  dependencies : [deps_litest, dep_check],
+						  c_args : defs_litest_selftest,
+						  install : false)
+		test('test-litest-selftest',
+		     test_litest_selftest,
+		     suite : ['all'],
+		     timeout : 100)
+	endif
 
 	def_LT_VERSION = '-DLIBINPUT_LT_VERSION="@0@:@1@:@2@"'.format(libinput_lt_c, libinput_lt_r, libinput_lt_a)
 	test_library_version = executable('test-library-version',
@@ -892,10 +909,13 @@ if get_option('tests')
 
 	test_utils_sources = [
 		'test/test-utils.c',
+		'test/litest-runner.c',
+		'test/litest.c',
 	]
 	test_utils = executable('libinput-test-utils',
 				test_utils_sources,
 				include_directories : [includes_src, includes_include],
+				c_args : [def_no_main],
 				dependencies : deps_litest,
 				install_dir : libinput_tool_path,
 				install : get_option('install-tests'))
@@ -903,7 +923,6 @@ if get_option('tests')
 	     test_utils,
 	     suite : ['all'])
 
-	# When adding new files to this list, update the CI
 	tests_sources = [
 		'test/test-udev.c',
 		'test/test-path.c',
@@ -935,14 +954,40 @@ if get_option('tests')
 
 	src_man += 'test/libinput-test-suite.man'
 
-	foreach testfile : tests_sources
-		tfile = testfile.split('test/test-')[1]
-		group = tfile.split('.c')[0]
+	# When adding new TEST_COLLECTION() macros, add to this list and the CI
+	# $ git grep TEST_COLLECTION test/test-* | sed -e "s|.*TEST_COLLECTION(\(.*\))|\t\t'\1',|" | sort
+	collections = [
+		'device',
+		'gestures',
+		'keyboard',
+		'log',
+		'misc',
+		'pad',
+		'path',
+		'pointer',
+		'quirks',
+		'switch',
+		'tablet',
+		'tablet_left_handed',
+		'totem',
+		'touch',
+		'touchpad',
+		'touchpad_buttons',
+		'touchpad_dwt',
+		'touchpad_palm',
+		'touchpad_tap',
+		'touchpad_tap_drag',
+		'touchpad_tap_palm',
+		'trackball',
+		'trackpoint',
+		'udev',
+	]
+
+	foreach group : collections
 		test('libinput-test-suite-@0@'.format(group),
 		     libinput_test_runner,
 		     suite : ['all', 'valgrind', 'root', 'hardware'],
-		     args : ['--filter-group=@0@'.format(group),
-			     '--xml-output=junit-@0@-XXXXXX.xml'.format(group)],
+		     args : ['--filter-group=@0@'.format(group)],
 		     is_parallel : false,
 		     timeout : 1200)
         endforeach
@@ -950,8 +995,7 @@ if get_option('tests')
 	test('libinput-test-deviceless',
 	     libinput_test_runner,
 	     suite : ['all', 'valgrind'],
-	     args: ['--filter-deviceless',
-	            '--xml-output=junit-deviceless-XXXXXX.xml'])
+	     args: ['--filter-deviceless'])
 
 	valgrind = find_program('valgrind', required : false)
 	if valgrind.found()
@@ -959,6 +1003,7 @@ if get_option('tests')
 		valgrind_suppressions_file = dir_src_test / 'valgrind.suppressions'
 		add_test_setup('valgrind',
 				exe_wrapper : [ valgrind,
+						'--log-file=valgrind.%p.log',
 						'--leak-check=full',
 						'--gen-suppressions=all',
 						'--error-exitcode=3',

@@ -21,44 +21,38 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#pragma once
+#ifndef UTIL_RANGE_H
+#define UTIL_RANGE_H
 
-#include "config.h"
+#include <stdbool.h>
 
-#include <errno.h>
-#include <libgen.h>
-#include <unistd.h>
-#include <sys/stat.h>
+struct range {
+	int lower; /* inclusive */
+	int upper; /* exclusive */
+};
 
-#include "util-strings.h"
-
-static inline int
-mkdir_p(const char *dir)
-{
-	char *path, *parent;
-	int rc;
-
-	if (streq(dir, "/"))
-		return 0;
-
-	path = safe_strdup(dir);
-	parent = dirname(path);
-
-	if ((rc = mkdir_p(parent)) < 0)
-		return rc;
-
-	rc = mkdir(dir, 0755);
-
-	free(path);
-
-	return (rc == -1 && errno != EEXIST) ? -errno : 0;
+static inline struct range
+range_init_empty(void) {
+	return (struct range){ .lower = 0, .upper = -1 };
 }
 
-static inline void
-xclose(int *fd)
-{
-	if (*fd > -1) {
-		close(*fd);
-		*fd = -1;
-	}
+static inline struct range
+range_init_inclusive(int lower, int upper) {
+	return (struct range) { .lower = lower, .upper = upper + 1};
 }
+
+static inline struct range
+range_init_exclusive(int lower, int upper) {
+	return (struct range){ .lower = lower, .upper = upper };
+}
+
+static inline bool
+range_is_valid(const struct range *r)
+{
+	return r->upper > r->lower;
+}
+
+#define range_for_each(range_, r_) \
+	for (r_ = (range_)->lower; r < (range_)->upper; r++)
+
+#endif

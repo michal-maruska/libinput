@@ -45,6 +45,7 @@
 #include "util-strings.h"
 
 static uint32_t dispatch_counter = 0;
+uint32_t log_serial = 0;
 
 void
 tools_dispatch(struct libinput *libinput)
@@ -69,7 +70,12 @@ log_handler(struct libinput *li,
 
 	if (is_tty) {
 		if (priority >= LIBINPUT_LOG_PRIORITY_ERROR) {
-			printf(ANSI_RED);
+			if (strstr(format, "client bug: ") ||
+			    strstr(format, "libinput bug: ") ||
+			    strstr(format, "kernel bug: "))
+				printf(ANSI_BRIGHT_RED);
+			else
+				printf(ANSI_RED);
 		} else if (priority >= LIBINPUT_LOG_PRIORITY_INFO) {
 			printf(ANSI_HIGHLIGHT);
 		} else if (priority == LIBINPUT_LOG_PRIORITY_DEBUG) {
@@ -94,6 +100,8 @@ log_handler(struct libinput *li,
 
 	if (is_tty)
 		printf(ANSI_NORMAL);
+
+	log_serial++;
 }
 
 void
@@ -125,6 +133,10 @@ tools_init_options(struct tools_options *options)
 	options->pressure_range[1] = 1.0;
 	options->calibration[0] = 1.0;
 	options->calibration[4] = 1.0;
+	options->area.x1 = 0.0;
+	options->area.y1 = 0.0;
+	options->area.x2 = 1.0;
+	options->area.y2 = 1.0;
 }
 
 int
@@ -158,10 +170,20 @@ tools_parse_option(int option,
 		options->drag = 0;
 		break;
 	case OPT_DRAG_LOCK_ENABLE:
-		options->drag_lock = 1;
+		if (optarg) {
+			if (streq(optarg, "sticky")) {
+				options->drag_lock = LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_STICKY;
+			} else if (streq(optarg, "timeout")) {
+				options->drag_lock = LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_TIMEOUT;
+			} else {
+				return 1;
+			}
+		} else {
+			options->drag_lock = LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_TIMEOUT;
+		}
 		break;
 	case OPT_DRAG_LOCK_DISABLE:
-		options->drag_lock = 0;
+		options->drag_lock = LIBINPUT_CONFIG_DRAG_LOCK_DISABLED;
 		break;
 	case OPT_NATURAL_SCROLL_ENABLE:
 		options->natural_scroll = 1;
@@ -347,7 +369,7 @@ tools_parse_option(int option,
 
 		size_t npoints = 0;
 		double *range = double_array_from_string(optarg, ":", &npoints);
-		if (npoints != 2 || range[0] < 0.0 || range[1] > 1.0 || range[0] >= range[1]) {
+		if (npoints != 2 || !range || range[0] < 0.0 || range[1] > 1.0 || range[0] >= range[1]) {
 			free(range);
 			fprintf(stderr, "Invalid pressure range, must be in format \"min:max\"\n");
 			return 1;
@@ -363,7 +385,7 @@ tools_parse_option(int option,
 
 		size_t npoints = 0;
 		double *matrix = double_array_from_string(optarg, " ", &npoints);
-		if (npoints != 6) {
+		if (!matrix || npoints != 6) {
 			free(matrix);
 			fprintf(stderr, "Invalid calibration matrix, must be 6 space-separated values\n");
 			return 1;
@@ -371,6 +393,22 @@ tools_parse_option(int option,
 		for (size_t i = 0; i < 6; i++)
 			options->calibration[i] =  matrix[i];
 		free(matrix);
+		break;
+	}
+	case OPT_AREA: {
+		if (!optarg)
+			return 1;
+
+		double x1, x2, y1, y2;
+
+		if (sscanf(optarg, "%lf/%lf %lf/%lf", &x1, &y1, &x2, &y2) != 4) {
+			fprintf(stderr, "Invalid --set-area values\n");
+			return 1;
+		}
+		options->area.x1 = x1;
+		options->area.y1 = y1;
+		options->area.x2 = x2;
+		options->area.y2 = y2;
 		break;
 		}
 	}
@@ -588,6 +626,9 @@ tools_device_apply_config(struct libinput_device *device,
 
 	if (libinput_device_config_calibration_has_matrix(device))
 		libinput_device_config_calibration_set_matrix(device, options->calibration);
+
+	if (libinput_device_config_area_has_rectangle(device))
+		libinput_device_config_area_set_rectangle(device, &options->area);
 }
 
 void

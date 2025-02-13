@@ -23,7 +23,6 @@
 
 #include <config.h>
 
-#include <check.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libinput.h>
@@ -72,7 +71,7 @@ START_TEST(log_default_priority)
 	li = libinput_path_create_context(&simple_interface, NULL);
 	pri = libinput_log_get_priority(li);
 
-	ck_assert_int_eq(pri, LIBINPUT_LOG_PRIORITY_ERROR);
+	litest_assert_enum_eq(pri, LIBINPUT_LOG_PRIORITY_ERROR);
 
 	libinput_unref(li);
 }
@@ -93,7 +92,7 @@ START_TEST(log_handler_invoked)
 
 	libinput_path_add_device(li, "/tmp");
 
-	ck_assert_int_gt(log_handler_called, 0);
+	litest_assert_int_gt(log_handler_called, 0);
 
 	litest_destroy_context(li);
 
@@ -114,7 +113,7 @@ START_TEST(log_handler_NULL)
 
 	libinput_path_add_device(li, "/tmp");
 
-	ck_assert_int_eq(log_handler_called, 0);
+	litest_assert_int_eq(log_handler_called, 0);
 
 	litest_destroy_context(li);
 
@@ -136,13 +135,13 @@ START_TEST(log_priority)
 
 	libinput_path_add_device(li, "/tmp");
 
-	ck_assert_int_eq(log_handler_called, 1);
+	litest_assert_int_eq(log_handler_called, 1);
 
 	libinput_log_set_priority(li, LIBINPUT_LOG_PRIORITY_INFO);
 	/* event0 exists on any box we care to run the test suite on and we
 	 * currently prints *something* for each device */
 	libinput_path_add_device(li, "/dev/input/event0");
-	ck_assert_int_gt(log_handler_called, 1);
+	litest_assert_int_gt(log_handler_called, 1);
 
 	litest_destroy_context(li);
 
@@ -189,11 +188,11 @@ START_TEST(log_axisrange_warning)
 			     abs->maximum * 2 + i);
 		litest_event(dev, EV_ABS, axis, abs->maximum * 2);
 		litest_event(dev, EV_SYN, SYN_REPORT, 0);
-		libinput_dispatch(li);
+		litest_dispatch(li);
 	}
 
 	/* Expect only one message per 5 min */
-	ck_assert_int_eq(axisrange_log_handler_called, 1);
+	litest_assert_int_eq(axisrange_log_handler_called, 1);
 
 	libinput_log_set_priority(li, LIBINPUT_LOG_PRIORITY_ERROR);
 	litest_restore_log_handler(li);
