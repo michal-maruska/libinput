@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017 James Ye <jye836@gmail.com>
+ * Copyright © 2025 Red Hat, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,39 +21,20 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "config.h"
+#pragma once
 
-#include "litest.h"
-#include "litest-int.h"
+#include <stdbool.h>
 
-static struct input_id input_id = {
-	.bustype = 0x19,
-	.vendor = 0x0,
-	.product = 0x5,
+#include "libinput.h"
+
+struct libinput_print_options {
+	uint32_t screen_width;
+	uint32_t screen_height;
+	uint32_t start_time;
+	bool show_keycodes;
 };
 
-static int events[] = {
-	EV_SW, SW_LID,
-	-1, -1,
-};
-
-static const char quirk_file[] =
-"[litest Lid Switch]\n"
-"MatchName=litest Lid Switch\n"
-"AttrLidSwitchReliability=reliable\n";
-
-TEST_DEVICE(LITEST_LID_SWITCH,
-	.features = LITEST_SWITCH,
-	.interface = NULL,
-
-	.name = "Lid Switch",
-	.id = &input_id,
-	.events = events,
-	.absinfo = NULL,
-
-	.quirk_file = quirk_file,
-	.udev_properties = {
-		{ "ID_INPUT_SWITCH", "1" },
-		{ NULL },
-	},
-)
+char *
+libinput_event_to_str(struct libinput_event *ev,
+		      size_t event_repeat_count,
+		      const struct libinput_print_options *opts);

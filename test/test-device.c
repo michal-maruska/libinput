@@ -1695,8 +1695,8 @@ START_TEST(device_button_down_remove)
 
 		keyname = libevdev_event_code_get_name(EV_KEY, code);
 		if (!keyname ||
-		    !strneq(keyname, "BTN_", 4) ||
-		    strneq(keyname, "BTN_TOOL_", 9))
+		    !strstartswith(keyname, "BTN_") ||
+		    strstartswith(keyname, "BTN_TOOL_"))
 			continue;
 
 		if (!libevdev_has_event_code(lidev->evdev, EV_KEY, code))
@@ -1747,8 +1747,8 @@ END_TEST
 
 TEST_COLLECTION(device)
 {
-	struct range abs_range = { 0, ABS_MISC };
-	struct range abs_mt_range = { ABS_MT_SLOT + 1, ABS_CNT };
+	struct range abs_range = range_init_exclusive(0, ABS_MISC);
+	struct range abs_mt_range = range_init_exclusive(ABS_MT_SLOT + 1, ABS_CNT);
 
 	litest_add(device_sendevents_config, LITEST_ANY, LITEST_TOUCHPAD|LITEST_TABLET);
 	litest_add(device_sendevents_config_invalid, LITEST_ANY, LITEST_TABLET);

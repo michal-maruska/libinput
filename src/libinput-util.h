@@ -37,6 +37,7 @@
 #include "util-macros.h"
 #include "util-list.h"
 #include "util-matrix.h"
+#include "util-multivalue.h"
 #include "util-strings.h"
 #include "util-ratelimit.h"
 #include "util-range.h"
@@ -57,12 +58,15 @@
 #define DEFAULT_MOUSE_DPI 1000
 #define DEFAULT_TRACKPOINT_SENSITIVITY 128
 
-#define trace(...) \
+#define _trace(file, ...) \
 	do { \
 	char buf_[1024]; \
 	snprintf(buf_, sizeof(buf_), __VA_ARGS__); \
-	printf(ANSI_BLUE "%s():%d - " ANSI_RED "%s" ANSI_NORMAL "\n", __func__, __LINE__, buf_); \
+	fprintf(file, ANSI_BLUE "%s():%d - " ANSI_RED "%s" ANSI_NORMAL "\n", __func__, __LINE__, buf_); \
 	} while (0)
+
+#define trace(...) _trace(stdout, __VA_ARGS__)
+#define etrace(...) _trace(stderr, __VA_ARGS__)
 
 #define LIBINPUT_EXPORT __attribute__ ((visibility("default")))
 #define LIBINPUT_UNUSED __attribute__ ((unused))

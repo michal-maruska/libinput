@@ -124,8 +124,7 @@ static int events[] = {
 	-1, -1,
 };
 
-TEST_DEVICE("wacom-calibrated-tablet",
-	.type = LITEST_WACOM_CALIBRATED_TABLET,
+TEST_DEVICE(LITEST_WACOM_CALIBRATED_TABLET_PEN,
 	.features = LITEST_TABLET|LITEST_PRECALIBRATED,
 	.interface = &interface,
 

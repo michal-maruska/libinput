@@ -24,11 +24,13 @@
 #include "config.h"
 
 #include <errno.h>
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <libudev.h>
+#include <libevdev/libevdev.h>
 
 #include <libinput.h>
 #include <libinput-version.h>
@@ -46,6 +48,20 @@ tap_default(struct libinput_device *device)
 		return "enabled";
 
 	return "disabled";
+}
+
+static const char *
+tap_button_map(struct libinput_device *device)
+{
+	if (!libinput_device_config_tap_get_finger_count(device))
+		return "n/a";
+
+	switch (libinput_device_config_tap_get_button_map(device)) {
+	case LIBINPUT_CONFIG_TAP_MAP_LRM: return "left/right/middle";
+	case LIBINPUT_CONFIG_TAP_MAP_LMR: return "left/middle/right";
+	}
+
+	return "<invalid value>";
 }
 
 static const char *
@@ -162,6 +178,33 @@ scroll_defaults(struct libinput_device *device)
 	return str;
 }
 
+static const char *
+scroll_button_default(struct libinput_device *device)
+{
+	uint32_t scroll_methods = libinput_device_config_scroll_get_methods(device);
+	if (scroll_methods & LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN) {
+		uint32_t button = libinput_device_config_scroll_get_default_button(device);
+		return libevdev_event_code_get_name(EV_KEY, button);
+	}
+
+	return "n/a";
+}
+
+static const char *
+scroll_button_lock_default(struct libinput_device *device)
+{
+	uint32_t scroll_methods = libinput_device_config_scroll_get_methods(device);
+	if (scroll_methods & LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN) {
+		switch (libinput_device_config_scroll_get_default_button_lock(device)) {
+		case LIBINPUT_CONFIG_SCROLL_BUTTON_LOCK_ENABLED: return "enabled";
+		case LIBINPUT_CONFIG_SCROLL_BUTTON_LOCK_DISABLED: return "disabled";
+		}
+		return "<invalid value>";
+	}
+
+	return "n/a";
+}
+
 static char*
 click_defaults(struct libinput_device *device)
 {
@@ -183,6 +226,22 @@ click_defaults(struct libinput_device *device)
 		 (method == LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER) ? "*" : "",
 		 (click_methods & LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER) ? "clickfinger " : "");
 	return str;
+}
+
+static const char *
+clickfinger_button_map(struct libinput_device *device)
+{
+	uint32_t click_methods = libinput_device_config_click_get_methods(device);
+	if (click_methods & LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER) {
+		switch (libinput_device_config_click_get_default_clickfinger_button_map(device)) {
+		case LIBINPUT_CONFIG_CLICKFINGER_MAP_LMR: return "left/middle/right";
+		case LIBINPUT_CONFIG_CLICKFINGER_MAP_LRM: return "left/right/middle";
+		}
+		return "<invalid value>";
+	} else {
+
+		return "n/a";
+	}
 }
 
 static char*
@@ -256,6 +315,22 @@ rotation_default(struct libinput_device *device)
 	return str;
 }
 
+static char *
+area_rectangle(struct libinput_device *device)
+{
+	if (libinput_device_config_area_has_rectangle(device)) {
+		struct libinput_config_area_rectangle rect =
+			libinput_device_config_area_get_default_rectangle(device);
+
+		char *str;
+		xasprintf(&str, "(%.2f, %.2f) - (%.2f, %.2f)",
+			  rect.x1, rect.y1, rect.x2, rect.y2);
+		return str;
+	}
+
+	return safe_strdup("n/a");
+}
+
 static void
 print_pad_info(struct libinput_device *device)
 {
@@ -318,6 +393,10 @@ print_pad_info(struct libinput_device *device)
 
 }
 
+#define print_aligned(topic, fmt, ...) do {\
+	printf("%-25s" fmt "\n", topic ":", __VA_ARGS__); \
+} while (0)
+
 static void
 print_device_notify(struct libinput_event *ev)
 {
@@ -330,6 +409,7 @@ print_device_notify(struct libinput_event *ev)
 	intptr_t group_id;
 	const char *devnode;
 	char *str;
+	const char *bustype = "<unknown>";
 
 	group = libinput_device_get_device_group(dev);
 	group_id = (intptr_t)libinput_device_group_get_user_data(group);
@@ -341,71 +421,79 @@ print_device_notify(struct libinput_event *ev)
 	udev_device = libinput_device_get_udev_device(dev);
 	devnode = udev_device_get_devnode(udev_device);
 
-	printf("Device:           %s\n"
-	       "Kernel:           %s\n"
-	       "Group:            %d\n"
-	       "Seat:             %s, %s\n",
-	       libinput_device_get_name(dev),
-	       devnode,
-	       (int)group_id,
-	       libinput_seat_get_physical_name(seat),
-	       libinput_seat_get_logical_name(seat));
+	print_aligned("Device", "%s", libinput_device_get_name(dev));
+	print_aligned("Kernel", "%s", devnode);
+
+	switch (libinput_device_get_id_bustype(dev)) {
+	case BUS_USB: bustype = "usb"; break;
+	case BUS_BLUETOOTH: bustype = "bluetooth"; break;
+	case BUS_VIRTUAL: bustype = "virtual"; break;
+	case BUS_I2C: bustype = "i2c"; break;
+	case BUS_HOST: bustype = "host"; break;
+	case BUS_I8042: bustype = "serial"; break;
+	}
+	print_aligned("Id", "%s:%04x:%04x",
+		      bustype,
+		      libinput_device_get_id_vendor(dev),
+		      libinput_device_get_id_product(dev));
+
+	print_aligned("Group" , "%d", (int)group_id);
+	print_aligned("Seat",
+		      "%s, %s",
+		      libinput_seat_get_physical_name(seat),
+		      libinput_seat_get_logical_name(seat));
 
 	udev_device_unref(udev_device);
 
 	if (libinput_device_get_size(dev, &w, &h) == 0)
-		printf("Size:             %.fx%.fmm\n", w, h);
-	printf("Capabilities:     ");
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_KEYBOARD))
-		printf("keyboard ");
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_POINTER))
-		printf("pointer ");
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_TOUCH))
-		printf("touch ");
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_TABLET_TOOL))
-		printf("tablet ");
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_TABLET_PAD))
-		printf("tablet-pad");
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_GESTURE))
-		printf("gesture");
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_SWITCH))
-		printf("switch");
-	printf("\n");
+		print_aligned("Size", "%.fx%.fmm", w, h);
 
-	printf("Tap-to-click:     %s\n", tap_default(dev));
-	printf("Tap-and-drag:     %s\n",  drag_default(dev));
-	printf("Tap drag lock:    %s\n", draglock_default(dev));
-	printf("Left-handed:      %s\n", left_handed_default(dev));
-	printf("Nat.scrolling:    %s\n", nat_scroll_default(dev));
-	printf("Middle emulation: %s\n", middle_emulation_default(dev));
+	print_aligned("Capabilities", "%s%s%s%s%s%s%s",
+		      libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_KEYBOARD) ? "keyboard " : "",
+		      libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_POINTER) ? "pointer " : "",
+		      libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TOUCH) ? "touch " : "",
+		      libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TABLET_TOOL) ? "tablet " : "",
+		      libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TABLET_PAD) ? "tablet-pad" : "",
+		      libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_GESTURE) ? "gesture" : "",
+		      libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_SWITCH) ? "switch" : "");
+
+	print_aligned("Tap-to-click", "%s", tap_default(dev));
+	print_aligned("Tap-and-drag", "%s", drag_default(dev));
+	print_aligned("Tap button map", "%s", tap_button_map(dev));
+	print_aligned("Tap drag lock", "%s", draglock_default(dev));
+	print_aligned("Left-handed", "%s", left_handed_default(dev));
+	print_aligned("Nat.scrolling", "%s", nat_scroll_default(dev));
+	print_aligned("Middle emulation", "%s", middle_emulation_default(dev));
 	str = calibration_default(dev);
-	printf("Calibration:      %s\n", str);
+	print_aligned("Calibration", "%s", str);
 	free(str);
 
 	str = scroll_defaults(dev);
-	printf("Scroll methods:   %s\n", str);
+	print_aligned("Scroll methods", "%s", str);
 	free(str);
+
+	print_aligned("Scroll button", "%s", scroll_button_default(dev));
+	print_aligned("Scroll button lock", "%s", scroll_button_lock_default(dev));
 
 	str = click_defaults(dev);
-	printf("Click methods:    %s\n", str);
+	print_aligned("Click methods", "%s", str);
 	free(str);
 
-	printf("Disable-w-typing: %s\n", dwt_default(dev));
-	printf("Disable-w-trackpointing: %s\n", dwtp_default(dev));
+	print_aligned("Clickfinger button map", "%s", clickfinger_button_map(dev));
+
+	print_aligned("Disable-w-typing", "%s", dwt_default(dev));
+	print_aligned("Disable-w-trackpointing", "%s", dwtp_default(dev));
 
 	str = accel_profiles(dev);
-	printf("Accel profiles:   %s\n", str);
+	print_aligned("Accel profiles", "%s", str);
 	free(str);
 
 	str = rotation_default(dev);
-	printf("Rotation:         %s\n", str);
+	print_aligned("Rotation", "%s", str);
+	free(str);
+
+	str = area_rectangle(dev);
+	print_aligned("Area rectangle", "%s",  str);
 	free(str);
 
 	if (libinput_device_has_capability(dev,
@@ -431,26 +519,51 @@ main(int argc, char **argv)
 	struct libinput *li;
 	struct libinput_event *ev;
 	bool grab = false;
-	const char *seat[2] = {"seat0", NULL};
 
-	/* This is kept for backwards-compatibility with the old
-	   libinput-list-devices */
-	if (argc > 1) {
-		if (streq(argv[1], "--help")) {
+	while (1) {
+		int c;
+		int option_index = 0;
+		enum {
+			OPT_HELP = 1,
+			OPT_VERBOSE,
+		};
+		static struct option opts[] = {
+			CONFIGURATION_OPTIONS,
+			{ "help",                      no_argument,       0, 'h' },
+			{ "verbose",                   no_argument,       0, OPT_VERBOSE },
+			{ 0, 0, 0, 0}
+		};
+		c = getopt_long(argc, argv, "h", opts, &option_index);
+		if (c == -1)
+			break;
+
+		switch(c) {
+		case '?':
+			return EXIT_INVALID_USAGE;
+		case 'h':
+		case OPT_HELP:
 			usage();
-			return 0;
+			return EXIT_SUCCESS;
+		default:
+			return EXIT_INVALID_USAGE;
 		}
 
-		if (streq(argv[1], "--version")) {
-			printf("%s\n", LIBINPUT_VERSION);
-			return 0;
-		}
-
-		usage();
-		return EXIT_INVALID_USAGE;
 	}
-
-	li = tools_open_backend(BACKEND_UDEV, seat, false, &grab);
+	if (optind < argc) {
+		const char *devices[32] = {NULL};
+		size_t ndevices = 0;
+		do {
+			if (ndevices >= ARRAY_LENGTH(devices) - 1) {
+				usage();
+				return EXIT_INVALID_USAGE;
+			}
+			devices[ndevices++] = argv[optind];
+		} while (++optind < argc);
+		li = tools_open_backend(BACKEND_DEVICE, devices, false, &grab);
+	} else {
+		const char *seat[2] = {"seat0", NULL};
+		li = tools_open_backend(BACKEND_UDEV, seat, false, &grab);
+	}
 	if (!li)
 		return 1;
 

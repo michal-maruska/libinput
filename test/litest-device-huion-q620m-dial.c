@@ -48,6 +48,7 @@ static struct input_absinfo absinfo[] = {
 
 static struct input_id input_id = {
 	.bustype = 0x3,
+	/* Note: this VID/PID is shared with multiple devices, see the libwacom database for a list */
 	.vendor = 0x256c,
 	.product = 0x006d,
 };
@@ -60,8 +61,7 @@ static int events[] = {
 };
 
 /* Device from https://gitlab.freedesktop.org/libinput/libinput/-/issues/600 */
-TEST_DEVICE("huion-q620m-dial-pad",
-	.type = LITEST_HUION_Q620M_DIAL,
+TEST_DEVICE(LITEST_HUION_Q620M_DIAL,
 	.features = LITEST_TABLET_PAD | LITEST_DIAL,
 	.interface = &interface,
 

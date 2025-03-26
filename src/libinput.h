@@ -150,8 +150,8 @@ struct libinput_event_touch;
  *
  * Tablet tool event representing an axis update, button press, or tool
  * update. Valid event types for this event are @ref
- * LIBINPUT_EVENT_TABLET_TOOL_AXIS, @ref
- * LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY and @ref
+ * LIBINPUT_EVENT_TABLET_TOOL_AXIS, @ref LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY,
+ * @ref LIBINPUT_EVENT_TABLET_TOOL_TIP, and @ref
  * LIBINPUT_EVENT_TABLET_TOOL_BUTTON.
  *
  * @since 1.2
@@ -164,9 +164,9 @@ struct libinput_event_tablet_tool;
  *
  * Tablet pad event representing a button press, or ring/strip update on
  * the tablet pad itself. Valid event types for this event are @ref
- * LIBINPUT_EVENT_TABLET_PAD_BUTTON, @ref LIBINPUT_EVENT_TABLET_PAD_DIAL,
- * @ref LIBINPUT_EVENT_TABLET_PAD_RING and
- * @ref LIBINPUT_EVENT_TABLET_PAD_STRIP.
+ * LIBINPUT_EVENT_TABLET_PAD_BUTTON, @ref LIBINPUT_EVENT_TABLET_PAD_RING,
+ * @ref LIBINPUT_EVENT_TABLET_PAD_STRIP, @ref LIBINPUT_EVENT_TABLET_PAD_KEY
+ * and @ref LIBINPUT_EVENT_TABLET_PAD_DIAL.
  *
  * @since 1.3
  */
@@ -5027,6 +5027,107 @@ libinput_device_config_tap_get_default_drag_lock_enabled(struct libinput_device 
 /**
  * @ingroup config
  *
+ * A config status to distinguish or set 3-finger dragging on a device.
+ *
+ * @since 1.27
+ */
+enum libinput_config_3fg_drag_state {
+	/**
+	 * Drag is to be disabled, or is
+	 * currently disabled.
+	 */
+	LIBINPUT_CONFIG_3FG_DRAG_DISABLED,
+	/**
+	 * Drag is to be enabled for 3 fingers, or is
+	 * currently enabled
+	 */
+	LIBINPUT_CONFIG_3FG_DRAG_ENABLED_3FG,
+	/**
+	 * Drag is to be enabled for 4 fingers, or is
+	 * currently enabled
+	 */
+	LIBINPUT_CONFIG_3FG_DRAG_ENABLED_4FG,
+};
+
+/**
+ * @ingroup config
+ *
+ * Returns the maximum number of fingers available for 3-finger dragging.
+ *
+ * @param device The device to check
+ *
+ * @see libinput_device_config_3fg_drag_set_enabled
+ * @see libinput_device_config_3fg_drag_get_enabled
+ * @see libinput_device_config_3fg_drag_get_default_enabled
+ *
+ * @since 1.27
+ */
+int
+libinput_device_config_3fg_drag_get_finger_count(struct libinput_device *device);
+
+/**
+ * @ingroup config
+ *
+ * Enable or disable 3-finger drag on this device. When enabled, three fingers
+ * down will result in a button down event, subsequent finger motion triggers
+ * a drag. The button is released shortly after all fingers are logically up.
+ * See the libinput documentation for more details.
+ *
+ * @param device The device to configure
+ * @param enable @ref LIBINPUT_CONFIG_DRAG_ENABLED to enable, @ref
+ * LIBINPUT_CONFIG_DRAG_DISABLED to disable 3-finger drag
+ *
+ * @see libinput_device_config_3fg_drag_is_available
+ * @see libinput_device_config_3fg_drag_get_enabled
+ * @see libinput_device_config_3fg_drag_get_default_enabled
+ *
+ * @since 1.27
+ */
+enum libinput_config_status
+libinput_device_config_3fg_drag_set_enabled(struct libinput_device *device,
+					    enum libinput_config_3fg_drag_state enable);
+
+/**
+ * @ingroup config
+ *
+ * Return whether 3-finger drag is enabled or disabled on this device.
+ *
+ * @param device The device to check
+ * @retval LIBINPUT_CONFIG_DRAG_ENABLED if 3-finger drag is enabled
+ * @retval LIBINPUT_CONFIG_DRAG_DISABLED if 3-finger drag is
+ * disabled
+ *
+ * @see libinput_device_config_3fg_drag_is_available
+ * @see libinput_device_config_3fg_drag_set_enabled
+ * @see libinput_device_config_3fg_drag_get_default_enabled
+ *
+ * @since 1.27
+ */
+enum libinput_config_3fg_drag_state
+libinput_device_config_3fg_drag_get_enabled(struct libinput_device *device);
+
+/**
+ * @ingroup config
+ *
+ * Return whether 3-finger drag is enabled or disabled by default on this device.
+ *
+ * @param device The device to check
+ * @retval LIBINPUT_CONFIG_DRAG_ENABLED if 3-finger drag is enabled
+ * @retval LIBINPUT_CONFIG_DRAG_DISABLED if 3-finger drag is
+ * disabled
+ *
+ * @see libinput_device_config_3fg_drag_is_available
+ * @see libinput_device_config_3fg_drag_set_enabled
+ * @see libinput_device_config_3fg_drag_get_enabled
+ *
+ * @since 1.27
+ */
+enum libinput_config_3fg_drag_state
+libinput_device_config_3fg_drag_get_default_enabled(struct libinput_device *device);
+
+/**
+ * @ingroup config
+ *
  * Check if the device can be calibrated via a calibration matrix.
  *
  * @param device The device to check
@@ -6818,7 +6919,7 @@ libinput_tablet_tool_config_pressure_range_get_minimum(struct libinput_tablet_to
  *
  * @see libinput_tablet_tool_config_pressure_range_is_available
  * @see libinput_tablet_tool_config_pressure_range_get_minimum
- * @see libinput_tablet_tool_config_pressure_range_get_default_maximum
+ * @see libinput_tablet_tool_config_pressure_range_get_default_minimum
  * @see libinput_tablet_tool_config_pressure_range_get_default_maximum
  *
  * @since 1.26
@@ -6861,7 +6962,7 @@ libinput_tablet_tool_config_pressure_range_get_default_minimum(struct libinput_t
  * @return The maximum pressure value for this tablet tool
  *
  * @see libinput_tablet_tool_config_pressure_range_is_available
- * @see libinput_tablet_tool_config_pressure_range_get_maximum
+ * @see libinput_tablet_tool_config_pressure_range_get_minimum
  * @see libinput_tablet_tool_config_pressure_range_get_maximum
  * @see libinput_tablet_tool_config_pressure_range_get_default_maximum
  *

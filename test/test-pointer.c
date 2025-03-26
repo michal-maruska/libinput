@@ -34,6 +34,10 @@
 #include "libinput-util.h"
 #include "litest.h"
 
+enum cardinal {
+	N, NE, E, SE, S, SW, W, NW
+};
+
 static void
 test_relative_event(struct litest_device *dev, double dx, double dy)
 {
@@ -183,25 +187,39 @@ START_TEST(pointer_motion_relative_min_decel)
 	struct libinput_event *event;
 	double evx, evy;
 	int dx, dy;
-	int cardinal = _i; /* ranged test */
 	double len;
+	enum cardinal direction = litest_test_param_get_i32(test_env->params, "direction");
 
-	int deltas[8][2] = {
-		/* N, NE, E, ... */
-		{ 0, 1 },
-		{ 1, 1 },
-		{ 1, 0 },
-		{ 1, -1 },
-		{ 0, -1 },
-		{ -1, -1 },
-		{ -1, 0 },
-		{ -1, 1 },
-	};
+	switch(direction) {
+	case N:
+		dx = 0; dy = 1;
+		break;
+	case NE:
+		dx = 1; dy = 1;
+		break;
+	case E:
+		dx = 1; dy = 0;
+		break;
+	case SE:
+		dx = 1; dy = -1;
+		break;
+	case S:
+		dx = 0; dy = -1;
+		break;
+	case SW:
+		dx = -1; dy = -1;
+		break;
+	case W:
+		dx = -1; dy = 0;
+		break;
+	case NW:
+		dx = -1; dy = 1;
+		break;
+	default:
+		litest_abort_msg("Invalid direction %d", direction);
+	}
 
 	litest_drain_events(dev->libinput);
-
-	dx = deltas[cardinal][0];
-	dy = deltas[cardinal][1];
 
 	litest_event(dev, EV_REL, REL_X, dx);
 	litest_event(dev, EV_REL, REL_Y, dy);
@@ -268,7 +286,7 @@ START_TEST(pointer_absolute_initial_state)
 	struct libinput *libinput1, *libinput2;
 	struct libinput_event *ev1, *ev2;
 	struct libinput_event_pointer *p1, *p2;
-	int axis = _i; /* looped test */
+	int axis = litest_test_param_get_i32(test_env->params, "axis");
 
 	libinput1 = dev->libinput;
 	litest_touch_down(dev, 0, 40, 60);
@@ -767,23 +785,23 @@ START_TEST(pointer_scroll_wheel_hires_send_only_lores)
 {
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
-	enum libinput_pointer_axis axis = _i; /* ranged test */
 	unsigned int lores_code, hires_code;
 	int direction;
+	enum libinput_pointer_axis axis = litest_test_param_get_i32(test_env->params, "axis");
 
 	switch (axis) {
-		case LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL:
-			lores_code = REL_WHEEL;
-			hires_code = REL_WHEEL_HI_RES;
-			direction = -1;
-			break;
-		case LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL:
-			lores_code = REL_HWHEEL;
-			hires_code = REL_HWHEEL_HI_RES;
-			direction = 1;
-			break;
-		default:
-			abort();
+	case LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL:
+		lores_code = REL_WHEEL;
+		hires_code = REL_WHEEL_HI_RES;
+		direction = -1;
+		break;
+	case LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL:
+		lores_code = REL_HWHEEL;
+		hires_code = REL_HWHEEL_HI_RES;
+		direction = 1;
+		break;
+	default:
+		litest_abort_msg("Invalid test axis '%d'", axis);
 	}
 
 	if (!libevdev_has_event_code(dev->evdev, EV_REL, lores_code) &&
@@ -1071,7 +1089,7 @@ START_TEST(pointer_scroll_with_rotation)
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
 	struct libinput_device *device = dev->libinput_device;
-	double angle = _i * 20; /* ranged test */
+	double angle = litest_test_param_get_double(test_env->params, "angle");
 
 	litest_drain_events(li);
 	libinput_device_config_rotation_set_angle(device, angle);
@@ -1668,7 +1686,6 @@ START_TEST(pointer_scroll_button_lock_config)
 	state = libinput_device_config_scroll_get_button_lock(dev->libinput_device);
 	litest_assert_enum_eq(state, LIBINPUT_CONFIG_SCROLL_BUTTON_LOCK_DISABLED);
 
-
 	status = libinput_device_config_scroll_set_button_lock(dev->libinput_device,
 							       LIBINPUT_CONFIG_SCROLL_BUTTON_LOCK_ENABLED);
 	litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
@@ -1933,15 +1950,14 @@ enum mb_buttonorder {
 	LRRL,
 	RRLL,
 	RLRL,
-	RLLR,
-	_MB_BUTTONORDER_COUNT
+	RLLR
 };
 
 START_TEST(pointer_scroll_button_lock_middlebutton)
 {
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
-	enum mb_buttonorder buttonorder = _i; /* ranged test */
+	enum mb_buttonorder buttonorder = litest_test_param_get_i32(test_env->params, "buttonorder");
 
 	if (!libinput_device_config_middle_emulation_is_available(dev->libinput_device))
 		return LITEST_NOT_APPLICABLE;
@@ -3145,7 +3161,7 @@ START_TEST(debounce_bounce)
 {
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
-	unsigned int button = _i; /* ranged test */
+	unsigned int button = litest_test_param_get_i32(test_env->params, "button");
 
 	if (!libinput_device_pointer_has_button(dev->libinput_device,
 						button))
@@ -3192,7 +3208,7 @@ START_TEST(debounce_bounce_high_delay)
 {
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
-	unsigned int button = _i; /* ranged test */
+	unsigned int button = litest_test_param_get_i32(test_env->params, "button");
 
 	if (!libinput_device_pointer_has_button(dev->libinput_device,
 						button))
@@ -3325,7 +3341,7 @@ START_TEST(debounce_spurious)
 {
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
-	unsigned int button = _i; /* ranged test */
+	unsigned int button = litest_test_param_get_i32(test_env->params, "button");
 
 	if (!libinput_device_pointer_has_button(dev->libinput_device,
 						button))
@@ -3745,17 +3761,15 @@ END_TEST
 
 TEST_COLLECTION(pointer)
 {
-	struct range axis_range = {ABS_X, ABS_Y + 1};
-	struct range compass = {0, 7}; /* cardinal directions */
-	struct range buttons = {BTN_LEFT, BTN_TASK + 1};
-	struct range buttonorder = {0, _MB_BUTTONORDER_COUNT};
-	struct range scroll_directions = {LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL,
-					  LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL + 1};
-	struct range rotation_20deg = {0, 18}; /* steps of 20 degrees */
-
 	litest_add(pointer_motion_relative, LITEST_RELATIVE, LITEST_POINTINGSTICK);
 	litest_add_for_device(pointer_motion_relative_zero, LITEST_MOUSE);
-	litest_add_ranged(pointer_motion_relative_min_decel, LITEST_RELATIVE, LITEST_POINTINGSTICK, &compass);
+	litest_with_parameters(params,
+			       "direction", 'I', 8, litest_named_i32(N), litest_named_i32(NE),
+						    litest_named_i32(E), litest_named_i32(SE),
+						    litest_named_i32(S), litest_named_i32(SW),
+						    litest_named_i32(W), litest_named_i32(NW)) {
+		litest_add_parametrized(pointer_motion_relative_min_decel, LITEST_RELATIVE, LITEST_POINTINGSTICK, params);
+	}
 	litest_add(pointer_motion_absolute, LITEST_ABSOLUTE, LITEST_ANY);
 	litest_add(pointer_motion_unaccel, LITEST_RELATIVE, LITEST_ANY);
 	litest_add(pointer_button, LITEST_BUTTON, LITEST_CLICKPAD);
@@ -3765,7 +3779,10 @@ TEST_COLLECTION(pointer)
 	litest_add(pointer_recover_from_lost_button_count, LITEST_BUTTON, LITEST_CLICKPAD);
 	litest_add(pointer_scroll_wheel, LITEST_WHEEL, LITEST_TABLET);
 	litest_add(pointer_scroll_wheel_hires, LITEST_WHEEL, LITEST_TABLET);
-	litest_add_ranged(pointer_scroll_wheel_hires_send_only_lores, LITEST_WHEEL, LITEST_TABLET, &scroll_directions);
+	litest_with_parameters(params, "axis", 'I', 2, litest_named_i32(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL, "vertical"),
+						       litest_named_i32(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL, "horizontal")) {
+		litest_add_parametrized(pointer_scroll_wheel_hires_send_only_lores, LITEST_WHEEL, LITEST_TABLET, params);
+	}
 	litest_add(pointer_scroll_wheel_inhibit_small_deltas, LITEST_WHEEL, LITEST_TABLET);
 	litest_add(pointer_scroll_wheel_inhibit_dir_change, LITEST_WHEEL, LITEST_TABLET);
 	litest_add_for_device(pointer_scroll_wheel_lenovo_scrollpoint, LITEST_LENOVO_SCROLLPOINT);
@@ -3783,7 +3800,14 @@ TEST_COLLECTION(pointer)
 	litest_add(pointer_scroll_button_lock_enable_while_down_just_lock, LITEST_RELATIVE|LITEST_BUTTON, LITEST_ANY);
 	litest_add(pointer_scroll_button_lock_otherbutton, LITEST_RELATIVE|LITEST_BUTTON, LITEST_ANY);
 	litest_add(pointer_scroll_button_lock_enable_while_otherbutton_down, LITEST_RELATIVE|LITEST_BUTTON, LITEST_ANY);
-	litest_add_ranged(pointer_scroll_button_lock_middlebutton, LITEST_RELATIVE|LITEST_BUTTON, LITEST_ANY, &buttonorder);
+	litest_with_parameters(params, "buttonorder", 'I', 6, litest_named_i32(LLRR),
+							      litest_named_i32(LRLR),
+							      litest_named_i32(LRRL),
+							      litest_named_i32(RRLL),
+							      litest_named_i32(RLRL),
+							      litest_named_i32(RLLR)) {
+		litest_add_parametrized(pointer_scroll_button_lock_middlebutton, LITEST_RELATIVE|LITEST_BUTTON, LITEST_ANY, params);
+	}
 	litest_add(pointer_scroll_button_lock_doubleclick_nomove, LITEST_RELATIVE|LITEST_BUTTON, LITEST_ANY);
 
 	litest_add(pointer_scroll_nowheel_defaults, LITEST_RELATIVE|LITEST_BUTTON, LITEST_WHEEL);
@@ -3793,7 +3817,10 @@ TEST_COLLECTION(pointer)
 	litest_add(pointer_scroll_natural_enable_config, LITEST_WHEEL, LITEST_TABLET);
 	litest_add(pointer_scroll_natural_wheel, LITEST_WHEEL, LITEST_TABLET);
 	litest_add(pointer_scroll_has_axis_invalid, LITEST_WHEEL, LITEST_TABLET);
-	litest_add_ranged(pointer_scroll_with_rotation, LITEST_WHEEL, LITEST_TABLET, &rotation_20deg);
+	litest_with_parameters(params, "angle", 'd', 18, 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0,
+							 180.0, 200.0, 220.0, 240.0, 260.0, 280.0, 300.0, 320.0, 340.0) {
+		litest_add_parametrized(pointer_scroll_with_rotation, LITEST_WHEEL, LITEST_TABLET, params);
+	}
 
 	litest_add(pointer_no_calibration, LITEST_ANY, LITEST_TOUCH|LITEST_SINGLE_TOUCH|LITEST_ABSOLUTE|LITEST_PROTOCOL_A|LITEST_TABLET);
 
@@ -3833,16 +3860,27 @@ TEST_COLLECTION(pointer)
 	litest_add(middlebutton_device_remove_while_down, LITEST_BUTTON, LITEST_CLICKPAD);
 	litest_add(middlebutton_device_remove_while_one_is_down, LITEST_BUTTON, LITEST_CLICKPAD);
 
-	litest_add_ranged(pointer_absolute_initial_state, LITEST_ABSOLUTE, LITEST_ANY, &axis_range);
+	litest_with_parameters(params, "axis", 'I', 2, litest_named_i32(ABS_X), litest_named_i32(ABS_Y)) {
+		litest_add_parametrized(pointer_absolute_initial_state, LITEST_ABSOLUTE, LITEST_ANY, params);
+	}
 
 	litest_add(pointer_time_usec, LITEST_RELATIVE, LITEST_ANY);
 
-	litest_add_ranged(debounce_bounce, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE, &buttons);
-	/* Timing-sensitive test, valgrind is too slow */
-	if (!RUNNING_ON_VALGRIND)
-		litest_add_ranged(debounce_bounce_high_delay, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE, &buttons);
+	litest_with_parameters(params, "button", 'I', 8, litest_named_i32(BTN_LEFT),
+							 litest_named_i32(BTN_RIGHT),
+							 litest_named_i32(BTN_MIDDLE),
+							 litest_named_i32(BTN_SIDE),
+							 litest_named_i32(BTN_EXTRA),
+							 litest_named_i32(BTN_FORWARD),
+							 litest_named_i32(BTN_BACK),
+							 litest_named_i32(BTN_TASK)) {
+		litest_add_parametrized(debounce_bounce, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE, params);
+		litest_add_parametrized(debounce_spurious, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE, params);
+		/* Timing-sensitive test, valgrind is too slow */
+		if (!RUNNING_ON_VALGRIND)
+			litest_add_parametrized(debounce_bounce_high_delay, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE, params);
+	}
 	litest_add(debounce_bounce_check_immediate, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE);
-	litest_add_ranged(debounce_spurious, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE, &buttons);
 	litest_add(debounce_spurious_multibounce, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE);
 	if (!RUNNING_ON_VALGRIND)
 		litest_add(debounce_spurious_trigger_high_delay, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE);

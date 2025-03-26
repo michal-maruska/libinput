@@ -23,12 +23,17 @@ ModelLenovoT450Touchpad=1
 [Lenovo T470 Trackpoint]
 MatchName=*TPPS/2 IBM TrackPoint
 MatchDMIModalias=dmi:*svnLENOVO:*:pvrThinkPadT470:*
-AttrTrackpointMultiplier=0.4
+AttrTrackpointMultiplier=0.75
 
 [Lenovo T480 Trackpoint]
 MatchName=*TPPS/2 IBM TrackPoint
 MatchDMIModalias=dmi:*svnLENOVO:*:pvrThinkPadT480:*
-AttrTrackpointMultiplier=0.4
+AttrTrackpointMultiplier=0.75
+
+[Lenovo A485 Trackpoint]
+MatchName=*TPPS/2 IBM TrackPoint
+MatchDMIModalias=dmi:*svnLENOVO:*:pvrThinkPadA485:*
+AttrTrackpointMultiplier=0.75
 
 # Touchpad is a clickpad but INPUT_PROP_BUTTONPAD is not set, see
 # https://gitlab.freedesktop.org/libinput/libinput/issues/177
@@ -389,5 +394,26 @@ ModelPressurePad=1
 [Lenovo ThinkBook 14 G6+ IMH]
 MatchName=*GXTP5100*
 MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkBook14G6+IMH*:*
+MatchUdevType=touchpad
+ModelPressurePad=1
+
+# Lenovo Yoga Slim 7i Carbon sends bogus ABS_MT_TOOL_TYPE MT_TOOL_PALM events
+[Lenovo Yoga Slim 7i Carbon]
+MatchName=* Touchpad
+MatchDMIModalias=dmi:*:svnLENOVO:*pvrYogaSlim7Carbon13IAP7:*
+AttrEventCode=-ABS_MT_TOOL_TYPE
+
+# The ThinkPad X9 15 Gen 1 Forcepad touchpad is not
+# detected as a pressure pad
+[Lenovo ThinkPad X9 15 Gen 1]
+MatchName=*GXTP5100*
+MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkPadX9-15Gen1*:*
+MatchUdevType=touchpad
+ModelPressurePad=1
+
+# The ThinkBook 14 G7+ IAH also has a similar issue as the ASP mentioned above.
+[Lenovo ThinkBook 14 G7+ IAH touchpad]
+MatchName=*GXTP5100*
+MatchDMIModalias=dmi:*svnLENOVO:*pvrThinkBook14G7+IAH*:*
 MatchUdevType=touchpad
 ModelPressurePad=1

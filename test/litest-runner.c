@@ -41,6 +41,7 @@
 
 #include "util-files.h"
 #include "util-list.h"
+#include "util-multivalue.h"
 #include "util-stringbuf.h"
 
 static bool use_jmpbuf; /* only used for max_forks = 0 */
@@ -86,6 +87,7 @@ struct litest_runner {
 	size_t max_forks;
 	unsigned int timeout;
 	bool verbose;
+	bool use_colors;
 	bool exit_on_fail;
 	FILE *fp;
 
@@ -107,7 +109,6 @@ struct litest_runner {
 		void *userdata;
 	} global;
 };
-
 
 /**
  * A global variable that the tests can use
@@ -255,6 +256,7 @@ litest_runner_test_run(const struct litest_runner_test_description *desc)
 {
 	const struct litest_runner_test_env env = {
 		.rangeval = desc->rangeval,
+		.params = desc->params,
 	};
 
 	if (desc->setup)
@@ -281,7 +283,7 @@ sighandler_forked_child(int signal)
          * the backtrace anyway -  we only need to backtrace the other signals
          */
         if (signal != SIGABRT)
-		litest_backtrace();
+		litest_backtrace(NULL);
 
 	raise(signal);
 }
@@ -647,6 +649,61 @@ print_lines(FILE *fp, const char *log, const char *prefix)
 	strv_free(lines);
 }
 
+void
+_litest_test_param_fetch(const struct litest_test_parameters *params, ...)
+{
+	struct litest_test_param *p;
+
+	const char *name;
+
+	va_list args;
+	va_start(args, params);
+
+	while ((name = va_arg(args, const char *))) {
+		bool found = false;
+		char type = (char)va_arg(args, int);
+		void **ptr = va_arg(args, void *);
+		list_for_each(p, &params->test_params, link) {
+			if (streq(p->name, name)) {
+				if (tolower(p->value.type) != tolower(type))
+					litest_abort_msg("Paramter type mismatch: parameter '%s' is of type %c", p->name, p->value.type);
+				found = true;
+				multivalue_extract(&p->value, ptr);
+				break;
+			}
+		}
+		if (!found)
+			litest_abort_msg("Unknown test parameter name '%s'", name);
+	}
+
+	va_end(args);
+}
+
+struct litest_test_parameters *
+litest_test_parameters_new(void)
+{
+	struct litest_test_parameters *params = zalloc(sizeof *params);
+	params->refcnt = 1;
+	list_init(&params->test_params);
+	return params;
+}
+
+struct litest_test_parameters *
+litest_test_parameters_unref(struct litest_test_parameters *params)
+{
+	if (params) {
+		assert(params->refcnt > 0);
+		if (--params->refcnt == 0) {
+			struct litest_test_param *p;
+			list_for_each_safe(p, &params->test_params, link) {
+				free(p);
+			}
+			free(params);
+		}
+	}
+	return NULL;
+}
+
 static void
 litest_runner_log_test_result(struct litest_runner *runner, struct litest_runner_test *t)
 {
@@ -671,6 +728,16 @@ litest_runner_log_test_result(struct litest_runner *runner, struct litest_runner
 	if (range_is_valid(&t->desc.args.range))
 		fprintf(runner->fp, "    rangeval: %d  # %d..%d\n", t->desc.rangeval, min, max);
 
+	if (t->desc.params) {
+		fprintf(runner->fp, "    params:\n");
+		struct litest_test_param *p;
+		list_for_each(p, &t->desc.params->test_params, link) {
+			char *val = multivalue_as_str(&p->value);
+			fprintf(runner->fp, "      %s: %s\n", p->name, val);
+			free(val);
+		}
+	}
+
 	fprintf(runner->fp,
 		"    duration: %ld  # (ms), total test run time: %02d:%02d\n",
 		t->times.end_millis - t->times.start_millis,
@@ -678,11 +745,10 @@ litest_runner_log_test_result(struct litest_runner *runner, struct litest_runner
 		(ms2s(t->times.end_millis - runner->times.start_millis)) % 60);
 
 	status = litest_runner_result_as_str(t->result);
-	bool is_tty = isatty(fileno(runner->fp));
 	fprintf(runner->fp, "    status: %s%s%s\n",
-		is_tty ? color : "",
+		runner->use_colors ? color : "",
 		&status[7], /* skip LITEST_ prefix */
-		is_tty ? ANSI_NORMAL : "");
+		runner->use_colors ? ANSI_NORMAL : "");
 
 	switch (t->result) {
 		case LITEST_PASS:
@@ -763,6 +829,13 @@ litest_runner_set_verbose(struct litest_runner *runner,
 			  bool verbose)
 {
 	runner->verbose = verbose;
+}
+
+void
+litest_runner_set_use_colors(struct litest_runner *runner,
+			     bool use_colors)
+{
+	runner->use_colors = use_colors;
 }
 
 void
@@ -955,7 +1028,6 @@ litest_runner_run_tests(struct litest_runner *runner)
 				break;
 		}
 	}
-
 
 	runner->times.end = time(NULL);
 	ltime = localtime(&runner->times.end);

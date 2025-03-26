@@ -218,6 +218,15 @@ struct libinput_device_config_tap {
 	enum libinput_config_drag_lock_state (*get_default_draglock_enabled)(struct libinput_device *device);
 };
 
+struct libinput_device_config_3fg_drag {
+	int (*count)(struct libinput_device *device);
+	enum libinput_config_status (*set_enabled)(struct libinput_device *device,
+						   enum libinput_config_3fg_drag_state enable);
+	enum libinput_config_3fg_drag_state (*get_enabled)(struct libinput_device *device);
+	enum libinput_config_3fg_drag_state (*get_default)(struct libinput_device *device);
+
+};
+
 struct libinput_device_config_calibration {
 	int (*has_matrix)(struct libinput_device *device);
 	enum libinput_config_status (*set_matrix)(struct libinput_device *device,
@@ -411,6 +420,7 @@ struct libinput_device_config {
 	struct libinput_device_config_dwtp *dwtp;
 	struct libinput_device_config_rotation *rotation;
 	struct libinput_device_config_gesture *gesture;
+	struct libinput_device_config_3fg_drag *drag_3fg;
 };
 
 struct libinput_device_group {
@@ -474,6 +484,21 @@ struct libinput_tablet_tool_config_pressure_range {
 	void (*get_default)(struct libinput_tablet_tool *tool, double *min, double *max);
 };
 
+struct libinput_tablet_tool_pressure_threshold {
+	unsigned int tablet_id;
+
+	/* The configured axis we actually work with */
+	struct input_absinfo abs_pressure;
+	struct threshold threshold; /* in device coordinates */
+	int offset; /* in device coordinates */
+	bool has_offset;
+
+	/* This gives us per-tablet heuristic state which is arguably
+	 * wrong but >99% of users have one tablet and it's easier to
+	 * implement it this way */
+	enum pressure_heuristic_state heuristic_state;
+};
+
 struct libinput_tablet_tool {
 	struct list link;
 	uint32_t serial;
@@ -485,17 +510,16 @@ struct libinput_tablet_tool {
 	void *user_data;
 
 	struct {
-		/* The configured axis we actually work with */
-		struct input_absinfo abs_pressure;
-		struct normalized_range range;
+                /* We're assuming that the *configured* pressure range is per
+                 * tool, not per tablet. The *adjusted* thresholds are then
+                 * per-tablet. */
+                struct normalized_range range;
 		struct normalized_range wanted_range;
 		bool has_configured_range;
 
-		struct threshold threshold; /* in device coordinates */
-		int offset; /* in device coordinates */
-		bool has_offset;
-
-		enum pressure_heuristic_state heuristic_state;
+		/* Hard-coded because I doubt we have users with more
+		 * than 4 tablets at the same time */
+		struct libinput_tablet_tool_pressure_threshold thresholds[4];
 	} pressure;
 
 	struct {

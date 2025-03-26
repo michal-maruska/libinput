@@ -81,6 +81,7 @@ static struct input_absinfo absinfo[] = {
 
 static struct input_id input_id = {
 	.bustype = 0x3,
+	/* Note: this VID/PID is shared with multiple devices, see the libwacom database for a list */
 	.vendor = 0x256c,
 	.product = 0x6e,
 };
@@ -93,8 +94,7 @@ static int events[] = {
 	-1, -1,
 };
 
-TEST_DEVICE("uclogic-tablet",
-	.type = LITEST_UCLOGIC_TABLET,
+TEST_DEVICE(LITEST_UCLOGIC_TABLET,
 	.features = LITEST_TABLET | LITEST_HOVER | LITEST_FORCED_PROXOUT,
 	.interface = &interface,
 

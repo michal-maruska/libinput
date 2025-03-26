@@ -142,8 +142,7 @@ static int events[] = {
 	-1, -1,
 };
 
-TEST_DEVICE("wacom-intuos5-tablet",
-	.type = LITEST_WACOM_INTUOS,
+TEST_DEVICE(LITEST_WACOM_INTUOS5_PEN,
 	.features = LITEST_TABLET | LITEST_DISTANCE | LITEST_TOOL_SERIAL | LITEST_TILT | LITEST_TOOL_MOUSE | LITEST_HOVER,
 	.interface = &interface,
 

@@ -46,7 +46,6 @@ simple_log_handler(struct libinput *libinput,
 	litest_assert_notnull(format);
 }
 
-
 static int open_restricted(const char *path, int flags, void *data)
 {
        int fd;
@@ -172,7 +171,7 @@ START_TEST(log_axisrange_warning)
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li = dev->libinput;
 	const struct input_absinfo *abs;
-	int axis = _i; /* looped test */
+	int axis = litest_test_param_get_i32(test_env->params, "axis");
 
 	litest_touch_down(dev, 0, 90, 100);
 	litest_drain_events(li);
@@ -202,14 +201,14 @@ END_TEST
 
 TEST_COLLECTION(log)
 {
-	struct range axes = { ABS_X, ABS_Y + 1};
-
 	litest_add_deviceless(log_default_priority);
 	litest_add_deviceless(log_handler_invoked);
 	litest_add_deviceless(log_handler_NULL);
 	litest_add_no_device(log_priority);
 
-	/* mtdev clips to axis ranges */
-	litest_add_ranged(log_axisrange_warning, LITEST_TOUCH, LITEST_PROTOCOL_A, &axes);
-	litest_add_ranged(log_axisrange_warning, LITEST_TOUCHPAD, LITEST_ANY, &axes);
+	litest_with_parameters(params, "axis", 'I', 2, litest_named_i32(ABS_X), litest_named_i32(ABS_Y)) {
+		/* mtdev clips to axis ranges */
+		litest_add_parametrized(log_axisrange_warning, LITEST_TOUCH, LITEST_PROTOCOL_A, params);
+		litest_add_parametrized(log_axisrange_warning, LITEST_TOUCHPAD, LITEST_ANY, params);
+	}
 }

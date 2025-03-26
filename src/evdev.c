@@ -1040,7 +1040,7 @@ evdev_print_event(struct evdev_device *device,
 
 	if (libevdev_event_is_code(e, EV_SYN, SYN_REPORT)) {
 		evdev_log_debug(device,
-			  "%u.%03u -------------- EV_SYN ------------ +%ums\n",
+			  "%u.%03u ----------------- EV_SYN ----------------- +%ums\n",
 			  time / 1000,
 			  time % 1000,
 			  time - last_time);
@@ -1063,7 +1063,7 @@ evdev_process_event(struct evdev_device *device, struct input_event *e)
 	struct evdev_dispatch *dispatch = device->dispatch;
 	uint64_t time = input_event_time(e);
 
-#if 0
+#if EVENT_DEBUGGING
 	evdev_print_event(device, e);
 #endif
 

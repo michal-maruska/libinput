@@ -37,6 +37,7 @@
 #include "libinput.h"
 #include "libinput-private.h"
 #include "util-input-event.h"
+#include "util-libinput.h"
 #include "evdev.h"
 #include "timer.h"
 #include "quirks.h"
@@ -3172,6 +3173,16 @@ switch_notify_toggle(struct libinput_device *device,
 #endif
 }
 
+LIBINPUT_UNUSED
+static inline void
+libinput_print_queued_event(struct libinput_event *event)
+{
+	struct libinput *libinput = libinput_event_get_context(event);
+	char *event_str = libinput_event_to_str(event, 0, NULL);
+	log_debug(libinput, "Queuing %s\n", event_str);
+	free(event_str);
+}
+
 static void
 libinput_post_event(struct libinput *libinput,
 		    struct libinput_event *event)
@@ -3182,8 +3193,8 @@ libinput_post_event(struct libinput *libinput,
 	size_t move_len;
 	size_t new_out;
 
-#if 0
-	log_debug(libinput, "Queuing %s\n", event_type_to_str(event->type));
+#if EVENT_DEBUGGING
+	libinput_print_queued_event(event);
 #endif
 
 	events_count++;
@@ -4104,6 +4115,48 @@ libinput_device_config_tap_get_default_drag_lock_enabled(struct libinput_device 
 		return LIBINPUT_CONFIG_DRAG_LOCK_DISABLED;
 
 	return device->config.tap->get_default_draglock_enabled(device);
+}
+
+LIBINPUT_EXPORT int
+libinput_device_config_3fg_drag_get_finger_count(struct libinput_device *device)
+{
+	return device->config.drag_3fg ? device->config.drag_3fg->count(device) : 0;
+}
+
+LIBINPUT_EXPORT enum libinput_config_status
+libinput_device_config_3fg_drag_set_enabled(struct libinput_device *device,
+					    enum libinput_config_3fg_drag_state enable)
+{
+	if (libinput_device_config_3fg_drag_get_finger_count(device) < 3)
+		return LIBINPUT_CONFIG_STATUS_UNSUPPORTED;
+
+	switch (enable) {
+	case LIBINPUT_CONFIG_3FG_DRAG_DISABLED:
+	case LIBINPUT_CONFIG_3FG_DRAG_ENABLED_3FG:
+	case LIBINPUT_CONFIG_3FG_DRAG_ENABLED_4FG:
+		return device->config.drag_3fg->set_enabled(device, enable);
+		break;
+	}
+
+	return LIBINPUT_CONFIG_STATUS_INVALID;
+}
+
+LIBINPUT_EXPORT enum libinput_config_3fg_drag_state
+libinput_device_config_3fg_drag_get_enabled(struct libinput_device *device)
+{
+	if (libinput_device_config_3fg_drag_get_finger_count(device) < 3)
+		return LIBINPUT_CONFIG_3FG_DRAG_DISABLED;
+
+	return device->config.drag_3fg->get_enabled(device);
+}
+
+LIBINPUT_EXPORT enum libinput_config_3fg_drag_state
+libinput_device_config_3fg_drag_get_default_enabled(struct libinput_device *device)
+{
+	if (libinput_device_config_3fg_drag_get_finger_count(device) < 3)
+		return LIBINPUT_CONFIG_3FG_DRAG_DISABLED;
+
+	return device->config.drag_3fg->get_default(device);
 }
 
 LIBINPUT_EXPORT int

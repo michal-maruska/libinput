@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.27.1',
+	version : '1.28.0',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.56.0')
@@ -353,6 +353,8 @@ else
 endif
 
 ############ libinput.so ############
+config_h.set10('EVENT_DEBUGGING', get_option('internal-event-debugging'))
+
 install_headers('src/libinput.h')
 src_libinput = src_libfilter + [
 	'src/libinput.c',
@@ -375,6 +377,7 @@ src_libinput = src_libfilter + [
 	'src/path-seat.c',
 	'src/udev-seat.c',
 	'src/timer.c',
+	'src/util-libinput.c',
 ]
 
 deps_libinput = [
@@ -445,11 +448,23 @@ endif
 
 subdir('completion/zsh')
 
+############ libinput-util-libinput.a ############
+
+# This one needs libinput itself
+src_libinput_util_libinput = [
+	'src/util-libinput.c'
+]
+libinput_util_libinput = static_library('libinput-util-libinput',
+					src_libinput_util_libinput,
+					dependencies : [dep_libevdev, dep_libinput_util, dep_libinput],
+					include_directories : includes_include)
+dep_libinput_util_libinput = declare_dependency(link_with : libinput_util_libinput)
+
 ############ tools ############
 libinput_tool_path = dir_libexec
 config_h.set_quoted('LIBINPUT_TOOL_PATH', libinput_tool_path)
 tools_shared_sources = [ 'tools/shared.c' ]
-deps_tools_shared = [ dep_libinput, dep_libevdev ]
+deps_tools_shared = [ dep_libinput, dep_libevdev, dep_libinput_util_libinput ]
 lib_tools_shared = static_library('tools_shared',
 				  tools_shared_sources,
 				  include_directories : [includes_src, includes_include],
@@ -863,6 +878,7 @@ if get_option('tests')
 		dep_lm,
 		dep_libsystemd,
 		dep_libquirks,
+		dep_libinput_util_libinput,
 	]
 
 	litest_config_h = configuration_data()

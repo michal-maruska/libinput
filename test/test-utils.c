@@ -1315,7 +1315,6 @@ START_TEST(kvsplit_double_test)
 			litest_assert_double_eq(t->results[i].b, result[i].value);
 		}
 
-
 		free(result);
 		t++;
 	}
@@ -1680,7 +1679,6 @@ START_TEST(absinfo_normalize_value_test)
 	litest_assert_double_eq(absinfo_normalize_value(&abs, 50), 1.0);
 	litest_assert_double_eq(absinfo_normalize_value(&abs, 51), 1.0);
 
-
 	abs.minimum = -50;
 	abs.maximum = 0;
 
@@ -1826,6 +1824,136 @@ START_TEST(stringbuf_test)
 }
 END_TEST
 
+START_TEST(multivalue_test)
+{
+	{
+		struct multivalue v = multivalue_new_string("test");
+		litest_assert_int_eq(v.type, 's');
+		litest_assert_str_eq(v.value.s, "test");
+
+		const char *s;
+		multivalue_extract_typed(&v, 's', &s);
+		litest_assert_str_eq(s, "test");
+		litest_assert_ptr_eq(s, (const char*)v.value.s);
+		multivalue_extract(&v, &s);
+		litest_assert_str_eq(s, "test");
+		litest_assert_ptr_eq(s, (const char*)v.value.s);
+
+		struct multivalue copy = multivalue_copy(&v);
+		litest_assert_int_eq(copy.type, v.type);
+		litest_assert_str_eq(copy.value.s, v.value.s);
+		char *p1 = copy.value.s;
+		char *p2 = v.value.s;
+		litest_assert_ptr_ne(p1, p2);
+
+		char *str = multivalue_as_str(&v);
+		litest_assert_str_eq(str, "test");
+		free(str);
+	}
+
+	{
+		struct multivalue v = multivalue_new_char('x');
+		litest_assert_int_eq(v.type, 'c');
+		litest_assert_int_eq(v.value.c, 'x');
+
+		char c;
+		multivalue_extract_typed(&v, 'c', &c);
+		litest_assert_int_eq(c, 'x');
+		multivalue_extract(&v, &c);
+		litest_assert_int_eq(c, 'x');
+
+		struct multivalue copy = multivalue_copy(&v);
+		litest_assert_int_eq(copy.type, v.type);
+		litest_assert_int_eq(copy.value.c, v.value.c);
+
+		char *str = multivalue_as_str(&v);
+		litest_assert_str_eq(str, "x");
+		free(str);
+	}
+
+	{
+		struct multivalue v = multivalue_new_u32(0x1234);
+		litest_assert_int_eq(v.type, 'u');
+		litest_assert_int_eq(v.value.u, 0x1234u);
+
+		uint32_t c;
+		multivalue_extract_typed(&v, 'u', &c);
+		litest_assert_int_eq(c, 0x1234u);
+		multivalue_extract(&v, &c);
+		litest_assert_int_eq(c, 0x1234u);
+
+		struct multivalue copy = multivalue_copy(&v);
+		litest_assert_int_eq(copy.type, v.type);
+		litest_assert_int_eq(copy.value.u, v.value.u);
+
+		char *str = multivalue_as_str(&v);
+		litest_assert_str_eq(str, "4660");
+		free(str);
+	}
+
+	{
+		struct multivalue v = multivalue_new_i32(-123);
+		litest_assert_int_eq(v.type, 'i');
+		litest_assert_int_eq(v.value.i, -123);
+
+		int32_t c;
+		multivalue_extract_typed(&v, 'i', &c);
+		litest_assert_int_eq(c, -123);
+		multivalue_extract(&v, &c);
+		litest_assert_int_eq(c, -123);
+
+		struct multivalue copy = multivalue_copy(&v);
+		litest_assert_int_eq(copy.type, v.type);
+		litest_assert_int_eq(copy.value.i, v.value.i);
+
+		char *str = multivalue_as_str(&v);
+		litest_assert_str_eq(str, "-123");
+		free(str);
+	}
+
+	{
+		struct multivalue v = multivalue_new_bool(true);
+		litest_assert_int_eq(v.type, 'b');
+		litest_assert_int_eq(v.value.b, true);
+
+		bool c;
+		multivalue_extract_typed(&v, 'b', &c);
+		litest_assert_int_eq(c, true);
+		multivalue_extract(&v, &c);
+		litest_assert_int_eq(c, true);
+
+		struct multivalue copy = multivalue_copy(&v);
+		litest_assert_int_eq(copy.type, v.type);
+		litest_assert_int_eq(copy.value.b, v.value.b);
+
+		char *str = multivalue_as_str(&v);
+		litest_assert_str_eq(str, "true");
+		free(str);
+	}
+
+	{
+		struct multivalue v = multivalue_new_double(0.1234);
+		litest_assert_int_eq(v.type, 'd');
+		litest_assert_double_eq(v.value.d, 0.1234);
+
+		double c;
+		multivalue_extract_typed(&v, 'd', &c);
+		litest_assert_double_eq(c, 0.1234);
+		multivalue_extract(&v, &c);
+		litest_assert_double_eq(c, 0.1234);
+
+		struct multivalue copy = multivalue_copy(&v);
+		litest_assert_int_eq(copy.type, v.type);
+		litest_assert_double_eq(copy.value.d, v.value.d);
+
+		char *str = multivalue_as_str(&v);
+		litest_assert_str_eq(str, "0.123400");
+		free(str);
+	}
+
+}
+END_TEST
+
 int main(void)
 {
 	struct litest_runner *runner = litest_runner_new();
@@ -1890,6 +2018,7 @@ int main(void)
 
 	ADD_TEST(range_test);
 	ADD_TEST(stringbuf_test);
+	ADD_TEST(multivalue_test);
 
 	enum litest_runner_result result = litest_runner_run_tests(runner);
 	litest_runner_destroy(runner);

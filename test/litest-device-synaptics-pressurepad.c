@@ -56,7 +56,6 @@ static struct input_event move[] = {
 	{ .type = -1, .code = -1 },
 };
 
-
 static int
 get_axis_default(struct litest_device *d, unsigned int evcode, int32_t *value)
 {
@@ -113,8 +112,7 @@ static struct input_absinfo absinfo[] = {
 	{ .value = -1 }
 };
 
-TEST_DEVICE("synaptics-pressurepad",
-	.type = LITEST_SYNAPTICS_PRESSUREPAD,
+TEST_DEVICE(LITEST_SYNAPTICS_PRESSUREPAD,
 	.features = LITEST_TOUCHPAD | LITEST_CLICKPAD | LITEST_BUTTON,
 	.interface = &interface,
 

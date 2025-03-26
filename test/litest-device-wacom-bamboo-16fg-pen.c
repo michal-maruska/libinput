@@ -101,8 +101,7 @@ static int events[] = {
 	-1, -1,
 };
 
-TEST_DEVICE("wacom-bamboo-tablet",
-	.type = LITEST_WACOM_BAMBOO,
+TEST_DEVICE(LITEST_WACOM_BAMBOO_16FG_PEN,
 	.features = LITEST_TABLET | LITEST_DISTANCE | LITEST_HOVER,
 	.interface = &interface,
 

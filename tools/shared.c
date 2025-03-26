@@ -137,6 +137,7 @@ tools_init_options(struct tools_options *options)
 	options->area.y1 = 0.0;
 	options->area.x2 = 1.0;
 	options->area.y2 = 1.0;
+	options->sendevents = LIBINPUT_CONFIG_SEND_EVENTS_ENABLED;
 }
 
 int
@@ -311,6 +312,18 @@ tools_parse_option(int option,
 			 "%s",
 			 optarg);
 		break;
+	case OPT_SENDEVENTS:
+		if (streq(optarg, "disabled"))
+			options->sendevents = LIBINPUT_CONFIG_SEND_EVENTS_DISABLED;
+		else if (streq(optarg, "enabled"))
+			options->sendevents = LIBINPUT_CONFIG_SEND_EVENTS_ENABLED;
+		else if (streq(optarg, "disabled-on-external-mouse"))
+			options->sendevents = LIBINPUT_CONFIG_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE;
+		else {
+			fprintf(stderr, "Invalid sendevents mode: %s\n", optarg);
+			return 1;
+		}
+		break;
 	case OPT_APPLY_TO:
 		if (!optarg)
 			return 1;
@@ -411,6 +424,21 @@ tools_parse_option(int option,
 		options->area.y2 = y2;
 		break;
 		}
+	case OPT_3FG_DRAG:
+		if (!optarg)
+			return 1;
+		if (streq(optarg, "3fg"))
+			options->drag_3fg = LIBINPUT_CONFIG_3FG_DRAG_ENABLED_3FG;
+		else if (streq(optarg, "4fg"))
+			options->drag_3fg = LIBINPUT_CONFIG_3FG_DRAG_ENABLED_4FG;
+		else if (streq(optarg, "disabled"))
+			options->drag_3fg = LIBINPUT_CONFIG_3FG_DRAG_DISABLED;
+		else {
+			fprintf(stderr, "Invalid --enable-3fg-drag\n"
+			                "Valid options: 3fg|4fg|disabled\n");
+			return 1;
+		}
+		break;
 	}
 	return 0;
 }
@@ -558,6 +586,8 @@ tools_device_apply_config(struct libinput_device *device,
 	    fnmatch(options->match, name, 0) == FNM_NOMATCH)
 		return;
 
+	libinput_device_config_send_events_set_mode(device, options->sendevents);
+
 	if (options->tapping != -1)
 		libinput_device_config_tap_set_enabled(device, options->tapping);
 	if (options->tap_map != (enum libinput_config_tap_button_map)-1)
@@ -629,6 +659,9 @@ tools_device_apply_config(struct libinput_device *device,
 
 	if (libinput_device_config_area_has_rectangle(device))
 		libinput_device_config_area_set_rectangle(device, &options->area);
+
+	if (libinput_device_config_3fg_drag_get_finger_count(device) >= 3)
+		libinput_device_config_3fg_drag_set_enabled(device, options->drag_3fg);
 }
 
 void
@@ -665,7 +698,7 @@ find_device(const char *udev_tag)
 			continue;
 
 		sysname = udev_device_get_sysname(device);
-		if (!strneq("event", sysname, 5)) {
+		if (!strstartswith("event", sysname)) {
 			udev_device_unref(device);
 			continue;
 		}

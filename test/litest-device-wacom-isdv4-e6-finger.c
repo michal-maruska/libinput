@@ -76,8 +76,7 @@ static int events[] = {
 	-1, -1,
 };
 
-TEST_DEVICE("wacom-touch",
-	.type = LITEST_WACOM_TOUCH,
+TEST_DEVICE(LITEST_WACOM_ISDV4_E6_FINGER,
 	.features = LITEST_TOUCH,
 	.interface = &interface,
 

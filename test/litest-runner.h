@@ -43,16 +43,94 @@ enum litest_runner_result {
 	LITEST_SYSTEM_ERROR = 80,	/**< unrelated error occurred */
 };
 
+/* For parametrized tests (litest_add_parametrized and friends)
+ * a list of these is passed to every test. This struct isn't used
+ * directly, use litest_test_param_fetch() instead.
+ */
+struct litest_test_param {
+	struct list link;
+	char name[128];
+	struct multivalue value;
+};
+
+struct litest_test_parameters {
+	int refcnt;
+	struct list test_params;
+};
+
+struct litest_test_parameters *
+litest_test_parameters_new(void);
+
+struct litest_test_parameters *
+litest_test_parameters_unref(struct litest_test_parameters *params);
+
+#define litest_test_param_fetch(...) \
+	_litest_test_param_fetch(__VA_ARGS__, NULL)
+
+void
+_litest_test_param_fetch(const struct litest_test_parameters *params, ...);
+
+static inline const char *
+litest_test_param_get_string(const struct litest_test_parameters *params, const char *name)
+{
+	const char *p;
+	litest_test_param_fetch(params, name, 's', &p);
+	return p;
+}
+
+static inline bool
+litest_test_param_get_bool(const struct litest_test_parameters *params, const char *name)
+{
+	bool p;
+	litest_test_param_fetch(params, name, 'b', &p);
+	return p;
+}
+
+static inline int32_t
+litest_test_param_get_i32(const struct litest_test_parameters *params, const char *name)
+{
+	int32_t p;
+	litest_test_param_fetch(params, name, 'i', &p);
+	return p;
+}
+
+static inline uint32_t
+litest_test_param_get_u32(const struct litest_test_parameters *params, const char *name)
+{
+	uint32_t p;
+	litest_test_param_fetch(params, name, 'u', &p);
+	return p;
+}
+
+static inline char
+litest_test_param_get_char(const struct litest_test_parameters *params, const char *name)
+{
+	char p;
+	litest_test_param_fetch(params, name, 'c', &p);
+	return p;
+}
+
+static inline double
+litest_test_param_get_double(const struct litest_test_parameters *params, const char *name)
+{
+	double p;
+	litest_test_param_fetch(params, name, 'd', &p);
+	return p;
+}
+
 /**
  * This struct is passed into every test.
  */
 struct litest_runner_test_env {
 	int rangeval;			/* The current value within the args.range (or 0) */
+	const struct litest_test_parameters *params;
 };
 
 struct litest_runner_test_description {
-	char name[256];			/* The name of the test */
+	char name[512];			/* The name of the test */
 	int rangeval;			/* The current value within the args.range (or 0) */
+
+	struct litest_test_parameters *params;
 
 	/* test function and corresponding setup/teardown, if any */
 	enum litest_runner_result (*func)(const struct litest_runner_test_env *);
@@ -77,6 +155,7 @@ struct litest_runner *litest_runner_new(void);
 void litest_runner_set_num_parallel(struct litest_runner *runner, size_t num_jobs);
 void litest_runner_set_timeout(struct litest_runner *runner, unsigned int timeout);
 void litest_runner_set_verbose(struct litest_runner *runner, bool verbose);
+void litest_runner_set_use_colors(struct litest_runner *runner, bool use_colors);
 void litest_runner_set_exit_on_fail(struct litest_runner *runner, bool do_exit);
 void litest_runner_set_output_file(struct litest_runner *runner, FILE *fp);
 void litest_runner_add_test(struct litest_runner *runner,

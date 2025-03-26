@@ -2272,7 +2272,6 @@ START_TEST(touchpad_palm_clickfinger_pressure_2fg)
 }
 END_TEST
 
-
 static inline bool
 touchpad_has_touch_size(struct litest_device *dev)
 {
@@ -3616,8 +3615,8 @@ START_TEST(touchpad_initial_state)
 {
 	struct litest_device *dev;
 	struct libinput *libinput1, *libinput2;
-	int axis = _i; /* looped test */
 	int x = 40, y = 60;
+	int axis = litest_test_param_get_i32(test_env->params, "axis");
 
 	dev = litest_current_device();
 	libinput1 = dev->libinput;
@@ -3679,7 +3678,7 @@ START_TEST(touchpad_fingers_down_before_init)
 	struct litest_device *dev = litest_current_device();
 	struct libinput *li;
 
-	int finger_count = _i; /* looped test */
+	int finger_count = litest_test_param_get_i32(test_env->params, "fingers");
 	unsigned int map[] = {0, BTN_TOOL_PEN, BTN_TOOL_DOUBLETAP,
 			      BTN_TOOL_TRIPLETAP, BTN_TOOL_QUADTAP,
 			      BTN_TOOL_QUINTTAP};
@@ -3729,7 +3728,6 @@ START_TEST(touchpad_fingers_down_before_init)
 	litest_destroy_context(li);
 }
 END_TEST
-
 
 /* This just tests that we don't completely screw up in one specific case.
  * The test likely needs to be removed if it starts failing in the future.
@@ -5317,7 +5315,7 @@ START_TEST(touchpad_dwt_multiple_keyboards_remove)
 	struct litest_device *touchpad = litest_current_device();
 	struct litest_device *keyboards[2];
 	struct libinput *li = touchpad->libinput;
-	int which = _i; /* ranged test */
+	int which = litest_test_param_get_i32(test_env->params, "which");
 	struct litest_device *removed, *remained;
 
 	litest_assert_int_le(which, 1);
@@ -6923,8 +6921,7 @@ START_TEST(touchpad_suspend_abba)
 	struct litest_device *tp = litest_current_device();
 	struct litest_device *lid, *tabletmode, *extmouse;
 	struct libinput *li = tp->libinput;
-	enum suspend first = _i; /* ranged test */
-	enum suspend other;
+	enum suspend first = litest_test_param_get_i32(test_env->params, "mode");
 
 	if (first == SUSPEND_EXT_MOUSE && litest_touchpad_is_external(tp))
 		return LITEST_NOT_APPLICABLE;
@@ -6945,7 +6942,7 @@ START_TEST(touchpad_suspend_abba)
 	 *  reason B off
 	 *  reason A off
 	 */
-	for (other = SUSPEND_EXT_MOUSE; other < SUSPEND_COUNT; other++) {
+	for (enum suspend other = SUSPEND_EXT_MOUSE; other < SUSPEND_COUNT; other++) {
 		if (other == first)
 			continue;
 
@@ -7063,8 +7060,7 @@ START_TEST(touchpad_suspend_abab)
 	struct litest_device *tp = litest_current_device();
 	struct litest_device *lid, *tabletmode, *extmouse;
 	struct libinput *li = tp->libinput;
-	enum suspend first = _i; /* ranged test */
-	enum suspend other;
+	enum suspend first = litest_test_param_get_i32(test_env->params, "mode");
 
 	if (first == SUSPEND_EXT_MOUSE && litest_touchpad_is_external(tp))
 		return LITEST_NOT_APPLICABLE;
@@ -7084,7 +7080,7 @@ START_TEST(touchpad_suspend_abab)
 	 *  reason A off
 	 *  reason B off
 	 */
-	for (other = SUSPEND_EXT_MOUSE; other < SUSPEND_COUNT; other++) {
+	for (enum suspend other = SUSPEND_EXT_MOUSE; other < SUSPEND_COUNT; other++) {
 		if (other == first)
 			continue;
 
@@ -7266,10 +7262,6 @@ END_TEST
 
 TEST_COLLECTION(touchpad)
 {
-	struct range suspends = { SUSPEND_EXT_MOUSE, SUSPEND_COUNT };
-	struct range axis_range = {ABS_X, ABS_Y + 1};
-	struct range five_fingers = {1, 6};
-
 	litest_add(touchpad_1fg_motion, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add(touchpad_2fg_no_motion, LITEST_TOUCHPAD, LITEST_SINGLE_TOUCH);
 
@@ -7338,8 +7330,13 @@ TEST_COLLECTION(touchpad)
 	litest_add_for_device(touchpad_trackpoint_buttons_2fg_scroll, LITEST_SYNAPTICS_TRACKPOINT_BUTTONS);
 	litest_add_for_device(touchpad_trackpoint_no_trackpoint, LITEST_SYNAPTICS_TRACKPOINT_BUTTONS);
 
-	litest_add_ranged(touchpad_initial_state, LITEST_TOUCHPAD, LITEST_ANY, &axis_range);
-	litest_add_ranged(touchpad_fingers_down_before_init, LITEST_TOUCHPAD, LITEST_ANY, &five_fingers);
+	litest_with_parameters(params, "axis", 'I', 2, litest_named_i32(ABS_X), litest_named_i32(ABS_Y)) {
+		litest_add_parametrized(touchpad_initial_state, LITEST_TOUCHPAD, LITEST_ANY, params);
+	}
+
+	litest_with_parameters(params, "fingers", 'i', 5, 1, 2, 3, 4, 5) {
+		litest_add_parametrized(touchpad_fingers_down_before_init, LITEST_TOUCHPAD, LITEST_ANY, params);
+	}
 	litest_add(touchpad_state_after_syn_dropped_2fg_change, LITEST_TOUCHPAD, LITEST_SINGLE_TOUCH);
 
 	litest_add(touchpad_thumb_lower_area_movement, LITEST_CLICKPAD, LITEST_ANY);
@@ -7381,20 +7378,23 @@ TEST_COLLECTION(touchpad)
 	litest_add(touchpad_speed_ignore_finger_edgescroll, LITEST_CLICKPAD, LITEST_SINGLE_TOUCH|LITEST_SEMI_MT);
 	litest_add_for_device(touchpad_speed_ignore_hovering_finger, LITEST_BCM5974);
 
-	litest_add_ranged(touchpad_suspend_abba, LITEST_TOUCHPAD, LITEST_ANY, &suspends);
-	litest_add_ranged(touchpad_suspend_abab, LITEST_TOUCHPAD, LITEST_ANY, &suspends);
+	litest_with_parameters(params, "mode", 'I', 4, litest_named_i32(SUSPEND_EXT_MOUSE, "external_mouse"),
+						       litest_named_i32(SUSPEND_SENDEVENTS, "sendevents"),
+						       litest_named_i32(SUSPEND_LID, "lid"),
+						       litest_named_i32(SUSPEND_TABLETMODE, "tabletmode")) {
+		litest_add_parametrized(touchpad_suspend_abba, LITEST_TOUCHPAD, LITEST_ANY, params);
+		litest_add_parametrized(touchpad_suspend_abab, LITEST_TOUCHPAD, LITEST_ANY, params);
+	}
 
 	/* Happens on the "Wacom Intuos Pro M Finger" but our test device
 	 * has the same properties */
-	litest_add_for_device(touchpad_end_start_touch, LITEST_WACOM_FINGER);
+	litest_add_for_device(touchpad_end_start_touch, LITEST_WACOM_INTUOS5_FINGER);
 
 	litest_add(touchpad_fuzz, LITEST_TOUCHPAD, LITEST_ANY);
 }
 
 TEST_COLLECTION(touchpad_dwt)
 {
-	struct range twice = {0, 2 };
-
 	litest_add(touchpad_dwt, LITEST_TOUCHPAD, LITEST_ANY);
 	litest_add_for_device(touchpad_dwt_ext_and_int_keyboard, LITEST_SYNAPTICS_I2C);
 	litest_add(touchpad_dwt_enable_touch, LITEST_TOUCHPAD, LITEST_ANY);
@@ -7434,7 +7434,9 @@ TEST_COLLECTION(touchpad_dwt)
 	litest_add_for_device(touchpad_dwt_multiple_keyboards, LITEST_SYNAPTICS_I2C);
 	litest_add_for_device(touchpad_dwt_multiple_keyboards_bothkeys, LITEST_SYNAPTICS_I2C);
 	litest_add_for_device(touchpad_dwt_multiple_keyboards_bothkeys_modifier, LITEST_SYNAPTICS_I2C);
-	litest_add_ranged_for_device(touchpad_dwt_multiple_keyboards_remove, LITEST_SYNAPTICS_I2C, &twice);
+	litest_with_parameters(params, "which", 'I', 2, litest_named_i32(0, "first"), litest_named_i32(1, "second")) {
+		litest_add_parametrized_for_device(touchpad_dwt_multiple_keyboards_remove, LITEST_SYNAPTICS_I2C, params);
+	}
 	litest_add_for_device(touchpad_dwt_remove_before_keyboard, LITEST_KEYBOARD);
 }
 

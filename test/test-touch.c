@@ -99,7 +99,7 @@ START_TEST(touch_abs_transform)
 		{ .value = -1 },
 	};
 
-	dev = litest_create_device_with_overrides(LITEST_WACOM_TOUCH,
+	dev = litest_create_device_with_overrides(LITEST_WACOM_ISDV4_E6_FINGER,
 						  "litest Highres touch device",
 						  NULL, abs, NULL);
 
@@ -163,7 +163,7 @@ START_TEST(touch_seat_slot)
 	struct litest_device *dev2;
 	struct libinput *li = dev1->libinput;
 
-	dev2 = litest_add_device(li, LITEST_WACOM_TOUCH);
+	dev2 = litest_add_device(li, LITEST_WACOM_ISDV4_E6_FINGER);
 
 	litest_drain_events(li);
 
@@ -218,7 +218,7 @@ START_TEST(touch_many_slots)
 		{ .value = -1 },
 	};
 
-	dev = litest_create_device_with_overrides(LITEST_WACOM_TOUCH,
+	dev = litest_create_device_with_overrides(LITEST_WACOM_ISDV4_E6_FINGER,
 						  "litest Multi-touch device",
 						  NULL, abs, NULL);
 	libinput = dev->libinput;
@@ -815,7 +815,7 @@ START_TEST(touch_initial_state)
 	struct libinput_event *ev2 = NULL;
 	struct libinput_event_touch *t1, *t2;
 	struct libinput_device *device1, *device2;
-	int axis = _i; /* looped test */
+	int axis = litest_test_param_get_i32(test_env->params, "axis");
 
 	dev = litest_current_device();
 	device1 = dev->libinput_device;
@@ -1336,8 +1336,6 @@ END_TEST
 
 TEST_COLLECTION(touch)
 {
-	struct range axes = { ABS_X, ABS_Y + 1};
-
 	litest_add(touch_frame_events, LITEST_TOUCH, LITEST_ANY);
 	litest_add(touch_downup_no_motion, LITEST_TOUCH, LITEST_ANY);
 	litest_add(touch_downup_no_motion, LITEST_SINGLE_TOUCH, LITEST_TOUCHPAD);
@@ -1364,7 +1362,9 @@ TEST_COLLECTION(touch)
 	litest_add(touch_protocol_a_touch, LITEST_PROTOCOL_A, LITEST_ANY);
 	litest_add(touch_protocol_a_2fg_touch, LITEST_PROTOCOL_A, LITEST_ANY);
 
-	litest_add_ranged(touch_initial_state, LITEST_TOUCH, LITEST_PROTOCOL_A, &axes);
+	litest_with_parameters(params, "axis", 'I', 2, litest_named_i32(ABS_X), litest_named_i32(ABS_Y)) {
+		litest_add_parametrized(touch_initial_state, LITEST_TOUCH, LITEST_PROTOCOL_A, params);
+	}
 
 	litest_add(touch_time_usec, LITEST_TOUCH, LITEST_TOUCHPAD);
 
