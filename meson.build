@@ -1,5 +1,5 @@
 project('libinput', 'c',
-	version : '1.28.0',
+	version : '1.28.1',
 	license : 'MIT/Expat',
 	default_options : [ 'c_std=gnu99', 'warning_level=2' ],
 	meson_version : '>= 0.56.0')
@@ -173,6 +173,10 @@ if have_libwacom
 	if cc.has_header_symbol('libwacom/libwacom.h', 'WACOM_BUTTON_DIAL_MODESWITCH',
 				dependencies : dep_libwacom)
 		config_h.set('HAVE_LIBWACOM_BUTTON_DIAL_MODESWITCH', '1')
+	endif
+	if cc.has_function('libwacom_get_button_modeswitch_mode',
+			   dependencies: dep_libwacom)
+		config_h.set('HAVE_LIBWACOM_BUTTON_MODESWITCH_MODE', '1')
 	endif
 else
 	dep_libwacom = declare_dependency()

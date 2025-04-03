@@ -469,10 +469,13 @@ print_tablet_tip_event(struct libinput_event *ev, const struct libinput_print_op
 	char *axes = print_tablet_axes(t);
 
 	state = libinput_event_tablet_tool_get_tip_state(t);
-	return strdup_printf("%s\t%s %s",
-			     time,
-			     axes,
-			     state == LIBINPUT_TABLET_TOOL_TIP_DOWN ? "down" : "up");
+	char *str = strdup_printf("%s\t%s %s",
+				  time,
+				  axes,
+				  state == LIBINPUT_TABLET_TOOL_TIP_DOWN ? "down" : "up");
+	free(axes);
+
+	return str;
 }
 
 static char *
@@ -729,10 +732,11 @@ print_gesture_event_with_coords(struct libinput_event *ev, const struct libinput
 		pinch = strdup_printf(" %5.2f @ %5.2f", scale, angle);
 	}
 
-	char *str = strdup_printf("%s\t%d %5.2f/%5.2f (%5.2f/%5.2f unaccelerated)",
+	char *str = strdup_printf("%s\t%d %5.2f/%5.2f (%5.2f/%5.2f unaccelerated)%s",
 				  time,
 				  libinput_event_gesture_get_finger_count(t),
-				  dx, dy, dx_unaccel, dy_unaccel);
+				  dx, dy, dx_unaccel, dy_unaccel,
+				  pinch ? pinch : "");
 	free(pinch);
 	return str;
 }
