@@ -26,8 +26,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <libinput.h>
-#include <unistd.h>
 #include <stdarg.h>
+#include <unistd.h>
 
 #include "litest.h"
 
@@ -46,44 +46,41 @@ simple_log_handler(struct libinput *libinput,
 	litest_assert_notnull(format);
 }
 
-static int open_restricted(const char *path, int flags, void *data)
+static int
+open_restricted(const char *path, int flags, void *data)
 {
-       int fd;
-       fd = open(path, flags);
-       return fd < 0 ? -errno : fd;
+	int fd;
+	fd = open(path, flags);
+	return fd < 0 ? -errno : fd;
 }
-static void close_restricted(int fd, void *data)
+static void
+close_restricted(int fd, void *data)
 {
-       close(fd);
+	close(fd);
 }
 
 static const struct libinput_interface simple_interface = {
-       .open_restricted = open_restricted,
-       .close_restricted = close_restricted,
+	.open_restricted = open_restricted,
+	.close_restricted = close_restricted,
 };
 
 START_TEST(log_default_priority)
 {
 	enum libinput_log_priority pri;
-	struct libinput *li;
 
-	li = libinput_path_create_context(&simple_interface, NULL);
+	_unref_(libinput) *li = libinput_path_create_context(&simple_interface, NULL);
 	pri = libinput_log_get_priority(li);
 
 	litest_assert_enum_eq(pri, LIBINPUT_LOG_PRIORITY_ERROR);
-
-	libinput_unref(li);
 }
 END_TEST
 
 START_TEST(log_handler_invoked)
 {
-	struct libinput *li;
-
 	log_handler_context = NULL;
 	log_handler_called = 0;
 
-	li = litest_create_context();
+	_litest_context_destroy_ struct libinput *li = litest_create_context();
 
 	libinput_log_set_priority(li, LIBINPUT_LOG_PRIORITY_DEBUG);
 	libinput_log_set_handler(li, simple_log_handler);
@@ -93,8 +90,6 @@ START_TEST(log_handler_invoked)
 
 	litest_assert_int_gt(log_handler_called, 0);
 
-	litest_destroy_context(li);
-
 	log_handler_context = NULL;
 	log_handler_called = 0;
 }
@@ -102,11 +97,9 @@ END_TEST
 
 START_TEST(log_handler_NULL)
 {
-	struct libinput *li;
-
 	log_handler_called = 0;
 
-	li = litest_create_context();
+	_litest_context_destroy_ struct libinput *li = litest_create_context();
 	libinput_log_set_priority(li, LIBINPUT_LOG_PRIORITY_DEBUG);
 	libinput_log_set_handler(li, NULL);
 
@@ -114,20 +107,16 @@ START_TEST(log_handler_NULL)
 
 	litest_assert_int_eq(log_handler_called, 0);
 
-	litest_destroy_context(li);
-
 	log_handler_called = 0;
 }
 END_TEST
 
 START_TEST(log_priority)
 {
-	struct libinput *li;
-
 	log_handler_context = NULL;
 	log_handler_called = 0;
 
-	li = litest_create_context();
+	_litest_context_destroy_ struct libinput *li = litest_create_context();
 	libinput_log_set_priority(li, LIBINPUT_LOG_PRIORITY_ERROR);
 	libinput_log_set_handler(li, simple_log_handler);
 	log_handler_context = li;
@@ -142,8 +131,6 @@ START_TEST(log_priority)
 	libinput_path_add_device(li, "/dev/input/event0");
 	litest_assert_int_gt(log_handler_called, 1);
 
-	litest_destroy_context(li);
-
 	log_handler_context = NULL;
 	log_handler_called = 0;
 }
@@ -157,13 +144,10 @@ axisrange_warning_log_handler(struct libinput *libinput,
 			      const char *format,
 			      va_list args)
 {
-	const char *substr;
-
 	axisrange_log_handler_called++;
 	litest_assert_notnull(format);
 
-	substr = strstr(format, "is outside expected range");
-	litest_assert_notnull(substr);
+	litest_assert_str_in("is outside expected range", format);
 }
 
 START_TEST(log_axisrange_warning)
@@ -182,7 +166,8 @@ START_TEST(log_axisrange_warning)
 	abs = libevdev_get_abs_info(dev->evdev, axis);
 
 	for (int i = 0; i < 100; i++) {
-		litest_event(dev, EV_ABS,
+		litest_event(dev,
+			     EV_ABS,
 			     ABS_MT_POSITION_X + axis,
 			     abs->maximum * 2 + i);
 		litest_event(dev, EV_ABS, axis, abs->maximum * 2);
@@ -201,6 +186,7 @@ END_TEST
 
 TEST_COLLECTION(log)
 {
+	/* clang-format off */
 	litest_add_deviceless(log_default_priority);
 	litest_add_deviceless(log_handler_invoked);
 	litest_add_deviceless(log_handler_NULL);
@@ -211,4 +197,5 @@ TEST_COLLECTION(log)
 		litest_add_parametrized(log_axisrange_warning, LITEST_TOUCH, LITEST_PROTOCOL_A, params);
 		litest_add_parametrized(log_axisrange_warning, LITEST_TOUCHPAD, LITEST_ANY, params);
 	}
+	/* clang-format on */
 }

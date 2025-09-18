@@ -26,13 +26,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <libinput.h>
-#include <unistd.h>
-#include <stdbool.h>
 #include <stdarg.h>
+#include <stdbool.h>
+#include <unistd.h>
+
+#include "util-input-event.h"
 
 #include "libinput-util.h"
 #include "litest.h"
-#include "util-input-event.h"
 
 START_TEST(totem_type)
 {
@@ -48,12 +49,11 @@ START_TEST(totem_type)
 	litest_dispatch(li);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
 	tool = libinput_event_tablet_tool_get_tool(t);
 
 	litest_assert_enum_eq(libinput_tablet_tool_get_type(tool),
-			 LIBINPUT_TABLET_TOOL_TYPE_TOTEM);
+			      LIBINPUT_TABLET_TOOL_TYPE_TOTEM);
 	libinput_event_destroy(event);
 }
 END_TEST
@@ -72,8 +72,7 @@ START_TEST(totem_axes)
 	litest_dispatch(li);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
 	tool = libinput_event_tablet_tool_get_tool(t);
 
 	litest_assert(libinput_tablet_tool_has_rotation(tool));
@@ -97,17 +96,15 @@ START_TEST(totem_proximity_in_out)
 	litest_dispatch(li);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_proximity_state(t),
-			 LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
+			      LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
 	libinput_event_destroy(event);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_TIP);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_TIP);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_tip_state(t),
-			 LIBINPUT_TABLET_TOOL_TIP_DOWN);
+			      LIBINPUT_TABLET_TOOL_TIP_DOWN);
 	libinput_event_destroy(event);
 
 	litest_assert_empty_queue(li);
@@ -115,17 +112,15 @@ START_TEST(totem_proximity_in_out)
 	litest_dispatch(li);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_TIP);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_TIP);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_tip_state(t),
-			 LIBINPUT_TABLET_TOOL_TIP_UP);
+			      LIBINPUT_TABLET_TOOL_TIP_UP);
 	libinput_event_destroy(event);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_proximity_state(t),
-			 LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_OUT);
+			      LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_OUT);
 	libinput_event_destroy(event);
 }
 END_TEST
@@ -133,7 +128,6 @@ END_TEST
 START_TEST(totem_proximity_in_on_init)
 {
 	struct litest_device *dev = litest_current_device();
-	struct libinput *li;
 	struct libinput_event *event;
 	struct libinput_event_tablet_tool *t;
 	const char *devnode;
@@ -142,15 +136,15 @@ START_TEST(totem_proximity_in_on_init)
 	const struct input_absinfo *abs;
 
 	abs = libevdev_get_abs_info(dev->evdev, ABS_MT_POSITION_X);
-	w = absinfo_range(abs)/abs->resolution;
+	w = absinfo_range(abs) / abs->resolution;
 	abs = libevdev_get_abs_info(dev->evdev, ABS_MT_POSITION_Y);
-	h = absinfo_range(abs)/abs->resolution;
+	h = absinfo_range(abs) / abs->resolution;
 
 	litest_tablet_proximity_in(dev, 50, 50, NULL);
 
 	/* for simplicity, we create a new litest context */
 	devnode = libevdev_uinput_get_devnode(dev->uinput);
-	li = litest_create_context();
+	_litest_context_destroy_ struct libinput *li = litest_create_context();
 	libinput_path_add_device(li, devnode);
 	litest_dispatch(li);
 
@@ -159,52 +153,47 @@ START_TEST(totem_proximity_in_on_init)
 	libinput_event_destroy(event);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_proximity_state(t),
-			 LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
+			      LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
 	x = libinput_event_tablet_tool_get_x(t);
 	y = libinput_event_tablet_tool_get_y(t);
 
-	litest_assert_double_gt(x, w/2 - 1);
-	litest_assert_double_lt(x, w/2 + 1);
-	litest_assert_double_gt(y, h/2 - 1);
-	litest_assert_double_lt(y, h/2 + 1);
+	litest_assert_double_gt(x, w / 2 - 1);
+	litest_assert_double_lt(x, w / 2 + 1);
+	litest_assert_double_gt(y, h / 2 - 1);
+	litest_assert_double_lt(y, h / 2 + 1);
 
 	libinput_event_destroy(event);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_TIP);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_TIP);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_tip_state(t),
-			 LIBINPUT_TABLET_TOOL_TIP_DOWN);
+			      LIBINPUT_TABLET_TOOL_TIP_DOWN);
 	x = libinput_event_tablet_tool_get_x(t);
 	y = libinput_event_tablet_tool_get_y(t);
 
-	litest_assert_double_gt(x, w/2 - 1);
-	litest_assert_double_lt(x, w/2 + 1);
-	litest_assert_double_gt(y, h/2 - 1);
-	litest_assert_double_lt(y, h/2 + 1);
+	litest_assert_double_gt(x, w / 2 - 1);
+	litest_assert_double_lt(x, w / 2 + 1);
+	litest_assert_double_gt(y, h / 2 - 1);
+	litest_assert_double_lt(y, h / 2 + 1);
 
 	libinput_event_destroy(event);
 
 	litest_assert_empty_queue(li);
-
-	litest_destroy_context(li);
 }
 END_TEST
 
 START_TEST(totem_proximity_out_on_suspend)
 {
 	struct litest_device *dev = litest_current_device();
-	struct libinput *li;
 	struct libinput_event *event;
 	struct libinput_event_tablet_tool *t;
 	const char *devnode;
 
 	/* for simplicity, we create a new litest context */
 	devnode = libevdev_uinput_get_devnode(dev->uinput);
-	li = litest_create_context();
+	_litest_context_destroy_ struct libinput *li = litest_create_context();
 	libinput_path_add_device(li, devnode);
 
 	litest_tablet_proximity_in(dev, 50, 50, NULL);
@@ -214,21 +203,18 @@ START_TEST(totem_proximity_out_on_suspend)
 
 	litest_dispatch(li);
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_TIP);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_TIP);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_tip_state(t),
-			 LIBINPUT_TABLET_TOOL_TIP_UP);
+			      LIBINPUT_TABLET_TOOL_TIP_UP);
 	libinput_event_destroy(event);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_proximity_state(t),
-			 LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_OUT);
+			      LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_OUT);
 	libinput_event_destroy(event);
 
 	litest_assert_only_typed_events(li, LIBINPUT_EVENT_DEVICE_REMOVED);
-	litest_destroy_context(li);
 }
 END_TEST
 
@@ -277,7 +263,7 @@ START_TEST(totem_rotation)
 	double r, old_r;
 	struct axis_replacement axes[] = {
 		{ ABS_MT_ORIENTATION, 50 }, /* mid-point is 0 */
-		{ -1, -1 }
+		{ -1, -1 },
 	};
 
 	litest_tablet_proximity_in(dev, 50, 50, axes);
@@ -376,9 +362,9 @@ START_TEST(totem_button)
 	litest_assert_int_eq(libinput_event_tablet_tool_get_button(t),
 			     (unsigned int)BTN_0);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_button_state(t),
-			 LIBINPUT_BUTTON_STATE_PRESSED);
+			      LIBINPUT_BUTTON_STATE_PRESSED);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_tip_state(t),
-			 LIBINPUT_TABLET_TOOL_TIP_DOWN);
+			      LIBINPUT_TABLET_TOOL_TIP_DOWN);
 	libinput_event_destroy(event);
 
 	litest_button_click(dev, BTN_0, false);
@@ -389,9 +375,9 @@ START_TEST(totem_button)
 	litest_assert_int_eq(libinput_event_tablet_tool_get_button(t),
 			     (unsigned int)BTN_0);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_button_state(t),
-			 LIBINPUT_BUTTON_STATE_RELEASED);
+			      LIBINPUT_BUTTON_STATE_RELEASED);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_tip_state(t),
-			 LIBINPUT_TABLET_TOOL_TIP_DOWN);
+			      LIBINPUT_TABLET_TOOL_TIP_DOWN);
 	libinput_event_destroy(event);
 }
 END_TEST
@@ -399,7 +385,6 @@ END_TEST
 START_TEST(totem_button_down_on_init)
 {
 	struct litest_device *dev = litest_current_device();
-	struct libinput *li;
 	struct libinput_event *event;
 	struct libinput_event_tablet_tool *t;
 	const char *devnode;
@@ -409,7 +394,7 @@ START_TEST(totem_button_down_on_init)
 
 	/* for simplicity, we create a new litest context */
 	devnode = libevdev_uinput_get_devnode(dev->uinput);
-	li = litest_create_context();
+	_litest_context_destroy_ struct libinput *li = litest_create_context();
 	libinput_path_add_device(li, devnode);
 	litest_dispatch(li);
 
@@ -418,18 +403,16 @@ START_TEST(totem_button_down_on_init)
 	libinput_event_destroy(event);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_proximity_state(t),
-			 LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
+			      LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
 
 	libinput_event_destroy(event);
 
 	event = libinput_get_event(li);
-	t = litest_is_tablet_event(event,
-				   LIBINPUT_EVENT_TABLET_TOOL_TIP);
+	t = litest_is_tablet_event(event, LIBINPUT_EVENT_TABLET_TOOL_TIP);
 	litest_assert_enum_eq(libinput_event_tablet_tool_get_tip_state(t),
-			 LIBINPUT_TABLET_TOOL_TIP_DOWN);
+			      LIBINPUT_TABLET_TOOL_TIP_DOWN);
 
 	libinput_event_destroy(event);
 
@@ -447,16 +430,13 @@ START_TEST(totem_button_down_on_init)
 	litest_button_click(dev, BTN_0, false);
 	litest_dispatch(li);
 	litest_assert_tablet_button_event(li, BTN_0, LIBINPUT_BUTTON_STATE_RELEASED);
-
-	litest_destroy_context(li);
 }
 END_TEST
 
 START_TEST(totem_button_up_on_delete)
 {
-	struct libinput *li = litest_create_context();
+	_litest_context_destroy_ struct libinput *li = litest_create_context();
 	struct litest_device *dev = litest_add_device(li, LITEST_DELL_CANVAS_TOTEM);
-	struct libevdev *evdev = libevdev_new();
 
 	litest_tablet_proximity_in(dev, 10, 10, NULL);
 	litest_drain_events(li);
@@ -464,18 +444,14 @@ START_TEST(totem_button_up_on_delete)
 	litest_button_click(dev, BTN_0, true);
 	litest_drain_events(li);
 
-	litest_delete_device(dev);
+	litest_device_destroy(dev);
 	litest_dispatch(li);
 
-	litest_assert_tablet_button_event(li,
-					  BTN_0,
-					  LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_tablet_button_event(li, BTN_0, LIBINPUT_BUTTON_STATE_RELEASED);
 
 	litest_assert_tablet_tip_event(li, LIBINPUT_TABLET_TOOL_TIP_UP);
 	litest_assert_tablet_proximity_event(li,
 					     LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_OUT);
-	libevdev_free(evdev);
-	litest_destroy_context(li);
 }
 END_TEST
 
@@ -501,7 +477,8 @@ START_TEST(totem_arbitration_below)
 	litest_tablet_proximity_in(totem, 50, 70, NULL);
 	litest_dispatch(li);
 
-	litest_assert_tablet_proximity_event(li, LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
+	litest_assert_tablet_proximity_event(li,
+					     LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN);
 	litest_assert_tablet_tip_event(li, LIBINPUT_TABLET_TOOL_TIP_DOWN);
 	litest_assert_touch_cancel(li);
 
@@ -514,7 +491,7 @@ START_TEST(totem_arbitration_below)
 	litest_touch_up(touch, 0);
 	litest_assert_empty_queue(li);
 
-	litest_delete_device(touch);
+	litest_device_destroy(touch);
 }
 END_TEST
 
@@ -540,7 +517,7 @@ START_TEST(totem_arbitration_during)
 		litest_assert_empty_queue(li);
 	}
 
-	litest_delete_device(touch);
+	litest_device_destroy(touch);
 }
 END_TEST
 
@@ -575,12 +552,13 @@ START_TEST(totem_arbitration_outside_rect)
 
 	litest_assert_touch_sequence(li);
 
-	litest_delete_device(touch);
+	litest_device_destroy(touch);
 }
 END_TEST
 
 TEST_COLLECTION(totem)
 {
+	/* clang-format off */
 	litest_add(totem_type, LITEST_TOTEM, LITEST_ANY);
 	litest_add(totem_axes, LITEST_TOTEM, LITEST_ANY);
 	litest_add(totem_proximity_in_out, LITEST_TOTEM, LITEST_ANY);
@@ -597,4 +575,5 @@ TEST_COLLECTION(totem)
 	litest_add(totem_arbitration_below, LITEST_TOTEM, LITEST_ANY);
 	litest_add(totem_arbitration_during, LITEST_TOTEM, LITEST_ANY);
 	litest_add(totem_arbitration_outside_rect, LITEST_TOTEM, LITEST_ANY);
+	/* clang-format on */
 }

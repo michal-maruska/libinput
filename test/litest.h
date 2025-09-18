@@ -22,27 +22,27 @@
  */
 
 #include "config.h"
+
 #include "litest-config.h"
 
 #ifndef LITEST_H
 #define LITEST_H
 
-#include <stdbool.h>
-#include <stdarg.h>
-#include <libevdev/libevdev.h>
 #include <libevdev/libevdev-uinput.h>
+#include <libevdev/libevdev.h>
 #include <libinput.h>
 #include <math.h>
+#include <stdarg.h>
+#include <stdbool.h>
 
 #include "libinput-private-config.h"
 #include "libinput-util.h"
-#include "quirks.h"
-
 #include "litest-runner.h"
+#include "quirks.h"
 
 #define START_TEST(func_)  \
    static enum litest_runner_result func_(const struct litest_runner_test_env *test_env) { \
-	int _i __attribute__((unused)) = test_env->rangeval;
+	int _i _unused_ = test_env->rangeval;
 
 #define END_TEST \
 	return LITEST_PASS; \
@@ -90,14 +90,22 @@ struct test_collection {
 #define litest_mark_test_start() \
 	litest_checkpoint("==================== BOILERPLATE END. TEST CONTENT STARTING NOW ====================");
 
-__attribute__ ((format (printf, 3, 0)))
-void _litest_checkpoint(const char *func,
-			int line,
-			const char *color,
-			const char *format,
-			...);
+__attribute__((format(printf, 3, 0))) void
+_litest_checkpoint(const char *func,
+		   int line,
+		   const char *color,
+		   const char *format,
+		   ...);
 #define litest_checkpoint(...) \
 	_litest_checkpoint(__func__, __LINE__, ANSI_GREEN, __VA_ARGS__)
+
+#define litest_log_group(...) \
+	for (bool i_ = ({ \
+			litest_checkpoint("🭋🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂 %s:%3d 🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🭀", __func__, __LINE__); \
+			litest_checkpoint(" " __VA_ARGS__); true; }); \
+		i_; \
+		i_ = ({litest_checkpoint("🭦🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭 %s:%3d 🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🭛", __func__, __LINE__);  \
+			  false; }))
 
 /**
  * litest itself needs the user_data to store some test-suite-specific
@@ -145,7 +153,7 @@ litest_fail_comparison_str(const char *file,
 			   const char *func,
 			   const char *comparison,
 			   const char *operator,
-			   const char *astr,
+			   const char * astr,
 			   const char *bstr);
 
 #define litest_assert(cond) \
@@ -162,11 +170,17 @@ litest_fail_comparison_str(const char *file,
 					      #cond, __VA_ARGS__); \
 	} while(0)
 
-#define litest_abort_msg(...) {\
-	litest_fail_condition(__FILE__, __LINE__, __func__, \
+#define litest_assert_not_reached() \
+	litest_abort_msg("Triggered unreachable code\n")
+
+#define _litest_abort_msg(file_, line_, func_, ...) do {\
+	litest_fail_condition(file_, line_, func_, \
 			      "aborting", __VA_ARGS__); \
 	abort(); \
-}
+} while (0)
+
+#define litest_abort_msg(...) \
+	_litest_abort_msg(__FILE__, __LINE__, __func__, __VA_ARGS__)
 
 #define litest_assert_notnull(cond) \
 	do { \
@@ -279,6 +293,28 @@ litest_fail_comparison_str(const char *file,
 						   _a, _b); \
 	} while(0)
 
+#define litest_assert_str_in(needle_, haystack_) \
+	do { \
+		const char *_needle = needle_; \
+		const char *_haystack = haystack_; \
+		if (!strstr(_haystack, _needle)) \
+			litest_fail_comparison_str(__FILE__, __LINE__, __func__,\
+						   "'" #needle_ "' in: '" #haystack_ "'", \
+						   "in", \
+						   _needle, _haystack); \
+	} while(0)
+
+#define litest_assert_str_not_in(needle_, haystack_) \
+	do { \
+		const char *_needle = needle_; \
+		const char *_haystack = haystack_; \
+		if (strstr(_haystack, _needle)) \
+			litest_fail_comparison_str(__FILE__, __LINE__, __func__,\
+						   "'" #needle_ "' not in: '" #haystack_ "'", \
+						   "not in", \
+						   _needle, _haystack); \
+	} while(0)
+
 #define LITEST_DEFAULT_EPSILON  0.001
 
 #define litest_assert_double_eq_epsilon(a_, b_, epsilon_)\
@@ -362,7 +398,18 @@ litest_fail_comparison_str(const char *file,
 #define litest_assert_double_ge(a_, b_)\
 	litest_assert_double_ge_epsilon((a_), (b_),LITEST_DEFAULT_EPSILON)
 
-void litest_backtrace(const char *func);
+void
+_litest_assert_strv_substring(char **strv,
+			      char *substring,
+			      const char *file,
+			      const char *func,
+			      int line);
+
+#define litest_assert_strv_substring(strv_, substring_) \
+	_litest_assert_strv_substring(strv_, substring_, __FILE__, __func__, __LINE__)
+
+void
+litest_backtrace(const char *func);
 
 enum litest_device_type {
 	LITEST_NO_DEVICE = -1,
@@ -403,6 +450,7 @@ enum litest_device_type {
 
 	/* Pointing devices and keyboards */
 	LITEST_MOUSE,
+	LITEST_MOUSE_PS2,
 	LITEST_KEYBOARD,
 	LITEST_TRACKPOINT,
 	LITEST_ABSINFO_OVERRIDE,
@@ -425,9 +473,11 @@ enum litest_device_type {
 	LITEST_MOUSE_GLADIUS,
 	LITEST_MOUSE_LOW_DPI,
 	LITEST_MOUSE_ROCCAT,
+	LITEST_MOUSE_VIRTUAL,
 	LITEST_MOUSE_WHEEL_CLICK_ANGLE,
 	LITEST_MOUSE_WHEEL_CLICK_COUNT,
 	LITEST_MOUSE_WHEEL_TILT,
+	LITEST_MOUSE_WHEEL_HIRES_DISABLED,
 	LITEST_MS_NANO_TRANSCEIVER_MOUSE,
 	LITEST_SONY_VAIO_KEYS,
 	LITEST_SYNAPTICS_TRACKPOINT_BUTTONS,
@@ -451,9 +501,10 @@ enum litest_device_type {
 	LITEST_ELAN_TABLET,
 	LITEST_HUION_TABLET,
 	LITEST_HUION_Q620M_DIAL,
+	LITEST_PLOOPY_PAVONIS_STYLUS,
+	LITEST_QEMU_TABLET,
 	LITEST_TABLET_DOUBLEDIAL_PAD,
 	LITEST_TABLET_REL_DIAL_PAD,
-	LITEST_QEMU_TABLET,
 	LITEST_UCLOGIC_TABLET,
 	LITEST_WACOM_BAMBOO_16FG_PEN,
 	LITEST_WACOM_BAMBOO_2FG_FINGER,
@@ -464,8 +515,8 @@ enum litest_device_type {
 	LITEST_WACOM_CINTIQ_13HDT_FINGER,
 	LITEST_WACOM_CINTIQ_13HDT_PAD,
 	LITEST_WACOM_CINTIQ_13HDT_PEN,
-	LITEST_WACOM_CINTIQ_24HD_PEN,
 	LITEST_WACOM_CINTIQ_24HDT_PAD,
+	LITEST_WACOM_CINTIQ_24HD_PEN,
 	LITEST_WACOM_CINTIQ_PRO16_FINGER,
 	LITEST_WACOM_CINTIQ_PRO16_PAD,
 	LITEST_WACOM_CINTIQ_PRO16_PEN,
@@ -474,9 +525,9 @@ enum litest_device_type {
 	LITEST_WACOM_INTUOS3_PAD,
 	LITEST_WACOM_INTUOS5_PAD,
 	LITEST_WACOM_INTUOS5_PEN,
-	LITEST_WACOM_ISDV4_E6_PEN,
 	LITEST_WACOM_ISDV4_4200_PEN,
 	LITEST_WACOM_ISDV4_524C_PEN,
+	LITEST_WACOM_ISDV4_E6_PEN,
 	LITEST_WACOM_MOBILESTUDIO_PRO_16_PAD,
 	LITEST_WALTOP,
 };
@@ -547,6 +598,11 @@ struct litest_device {
 	struct libinput_device *libinput_device;
 	struct litest_device_interface *interface;
 
+	struct {
+		struct input_event events[64];
+		size_t nevents;
+	} frame;
+
 	int ntouches_down;
 	int skip_ev_syn;
 	struct litest_semi_mt semi_mt; /** only used for semi-mt device */
@@ -588,11 +644,25 @@ litest_axis_set_value(struct axis_replacement *axes, int code, double value)
 	litest_axis_set_value_unchecked(axes, code, value);
 }
 
-struct libinput *litest_create_context(void);
-void litest_destroy_context(struct libinput *li);
-void litest_disable_log_handler(struct libinput *libinput);
-void litest_restore_log_handler(struct libinput *libinput);
-void litest_set_log_handler_bug(struct libinput *libinput);
+struct libinput *
+litest_create_context(void);
+void
+litest_destroy_context(struct libinput *li);
+DEFINE_TRIVIAL_CLEANUP_FUNC(struct libinput *, litest_destroy_context);
+
+#define _litest_context_destroy_ _cleanup_(litest_destroy_contextp)
+
+void
+litest_context_set_user_data(struct libinput *li, void *data);
+void *
+litest_context_get_user_data(struct libinput *li);
+
+void
+litest_disable_log_handler(struct libinput *libinput);
+void
+litest_restore_log_handler(struct libinput *libinput);
+void
+litest_set_log_handler_bug(struct libinput *libinput);
 
 struct litest_parameters;
 
@@ -651,7 +721,9 @@ struct litest_parameters_permutation {
 /**
  * Callback function invoked for each permutation of a struct litest_parameters.
  */
-typedef int (*litest_parameters_permutation_func_t)(struct litest_parameters_permutation *permutation, void *userdata);
+typedef int (*litest_parameters_permutation_func_t)(
+	struct litest_parameters_permutation *permutation,
+	void *userdata);
 
 /**
  * Permutates the given parameters and calls func for every possible
@@ -713,7 +785,7 @@ _litest_add_parametrized(const char *name,
 			 const void *func,
 			 int64_t required,
 			 int64_t excluded,
-			 struct  litest_parameters *params);
+			 struct litest_parameters *params);
 void
 _litest_add_for_device(const char *name,
 		       const char *funcname,
@@ -732,9 +804,7 @@ _litest_add_parametrized_for_device(const char *name,
 				    enum litest_device_type type,
 				    struct litest_parameters *params);
 void
-_litest_add_no_device(const char *name,
-		      const char *funcname,
-		      const void *func);
+_litest_add_no_device(const char *name, const char *funcname, const void *func);
 void
 _litest_add_parametrized_no_device(const char *name,
 				   const char *funcname,
@@ -746,9 +816,7 @@ _litest_add_ranged_no_device(const char *name,
 			     const void *func,
 			     const struct range *range);
 void
-_litest_add_deviceless(const char *name,
-		       const char *funcname,
-		       const void *func);
+_litest_add_deviceless(const char *name, const char *funcname, const void *func);
 void
 _litest_add_parametrized_deviceless(const char *name,
 				    const char *funcname,
@@ -759,8 +827,7 @@ struct litest_device *
 litest_create_device(enum litest_device_type which);
 
 struct litest_device *
-litest_add_device(struct libinput *libinput,
-		  enum litest_device_type which);
+litest_add_device(struct libinput *libinput, enum litest_device_type which);
 struct libevdev_uinput *
 litest_create_uinput_device_from_description(const char *name,
 					     const struct input_id *id,
@@ -797,7 +864,9 @@ void
 litest_ungrab_device(struct litest_device *d);
 
 void
-litest_delete_device(struct litest_device *d);
+litest_device_destroy(struct litest_device *d);
+
+DEFINE_DESTROY_CLEANUP_FUNC(litest_device);
 
 const char *
 litest_event_type_str(enum libinput_event_type type);
@@ -809,24 +878,27 @@ _litest_dispatch(struct libinput *li, const char *func, int line);
 	_litest_dispatch(li_, __func__, __LINE__)
 
 void
-litest_event(struct litest_device *t,
-	     unsigned int type,
-	     unsigned int code,
-	     int value);
+litest_event(struct litest_device *t, unsigned int type, unsigned int code, int value);
+
+void
+litest_event_unchecked(struct litest_device *d,
+		       unsigned int type,
+		       unsigned int code,
+		       int value);
+
 int
 litest_auto_assign_value(struct litest_device *d,
 			 const struct input_event *ev,
-			 int slot, double x, double y,
+			 int slot,
+			 double x,
+			 double y,
 			 struct axis_replacement *axes,
 			 bool touching);
 void
 litest_touch_up(struct litest_device *d, unsigned int slot);
 
 void
-litest_touch_move(struct litest_device *d,
-		  unsigned int slot,
-		  double x,
-		  double y);
+litest_touch_move(struct litest_device *d, unsigned int slot, double x, double y);
 
 void
 litest_touch_move_extended(struct litest_device *d,
@@ -845,10 +917,7 @@ litest_touch_sequence(struct litest_device *d,
 		      int steps);
 
 void
-litest_touch_down(struct litest_device *d,
-		  unsigned int slot,
-		  double x,
-		  double y);
+litest_touch_down(struct litest_device *d, unsigned int slot, double x, double y);
 
 void
 litest_touch_down_extended(struct litest_device *d,
@@ -860,40 +929,51 @@ litest_touch_down_extended(struct litest_device *d,
 void
 litest_touch_move_to(struct litest_device *d,
 		     unsigned int slot,
-		     double x_from, double y_from,
-		     double x_to, double y_to,
+		     double x_from,
+		     double y_from,
+		     double x_to,
+		     double y_to,
 		     int steps);
 
 void
 litest_touch_move_to_extended(struct litest_device *d,
 			      unsigned int slot,
-			      double x_from, double y_from,
-			      double x_to, double y_to,
+			      double x_from,
+			      double y_from,
+			      double x_to,
+			      double y_to,
 			      struct axis_replacement *axes,
 			      int steps);
 
 void
 litest_touch_move_two_touches(struct litest_device *d,
-			      double x0, double y0,
-			      double x1, double y1,
-			      double dx, double dy,
+			      double x0,
+			      double y0,
+			      double x1,
+			      double y1,
+			      double dx,
+			      double dy,
 			      int steps);
 
 void
 litest_touch_move_three_touches(struct litest_device *d,
-				double x0, double y0,
-				double x1, double y1,
-				double x2, double y2,
-				double dx, double dy,
+				double x0,
+				double y0,
+				double x1,
+				double y1,
+				double x2,
+				double y2,
+				double dx,
+				double dy,
 				int steps);
 
 void
-litest_tablet_set_tool_type(struct litest_device *d,
-			    unsigned int code);
+litest_tablet_set_tool_type(struct litest_device *d, unsigned int code);
 
 void
 litest_tablet_proximity_in(struct litest_device *d,
-			   double x, double y,
+			   double x,
+			   double y,
 			   struct axis_replacement *axes);
 
 void
@@ -901,17 +981,20 @@ litest_tablet_proximity_out(struct litest_device *d);
 
 void
 litest_tablet_tip_down(struct litest_device *d,
-		       double x, double y,
+		       double x,
+		       double y,
 		       struct axis_replacement *axes);
 
 void
 litest_tablet_tip_up(struct litest_device *d,
-		     double x, double y,
+		     double x,
+		     double y,
 		     struct axis_replacement *axes);
 
 void
 litest_tablet_motion(struct litest_device *d,
-		     double x, double y,
+		     double x,
+		     double y,
 		     struct axis_replacement *axes);
 
 void
@@ -933,31 +1016,31 @@ void
 litest_pad_strip_end(struct litest_device *d);
 
 void
-litest_hover_start(struct litest_device *d,
-		   unsigned int slot,
-		   double x,
-		   double y);
+litest_hover_start(struct litest_device *d, unsigned int slot, double x, double y);
 
 void
 litest_hover_end(struct litest_device *d, unsigned int slot);
 
-void litest_hover_move(struct litest_device *d,
-		       unsigned int slot,
-		       double x,
-		       double y);
+void
+litest_hover_move(struct litest_device *d, unsigned int slot, double x, double y);
 
 void
 litest_hover_move_to(struct litest_device *d,
 		     unsigned int slot,
-		     double x_from, double y_from,
-		     double x_to, double y_to,
+		     double x_from,
+		     double y_from,
+		     double x_to,
+		     double y_to,
 		     int steps);
 
 void
 litest_hover_move_two_touches(struct litest_device *d,
-			      double x0, double y0,
-			      double x1, double y1,
-			      double dx, double dy,
+			      double x0,
+			      double y0,
+			      double x1,
+			      double y1,
+			      double dx,
+			      double dy,
 			      int steps);
 
 void
@@ -967,36 +1050,32 @@ litest_button_click_debounced(struct litest_device *d,
 			      bool is_press);
 
 void
-litest_button_click(struct litest_device *d,
-		    unsigned int button,
-		    bool is_press);
+litest_button_click(struct litest_device *d, unsigned int button, bool is_press);
 
 void
 litest_button_scroll(struct litest_device *d,
 		     unsigned int button,
-		     double dx, double dy);
+		     double dx,
+		     double dy);
 void
 litest_button_scroll_locked(struct litest_device *d,
 			    unsigned int button,
-			    double dx, double dy);
+			    double dx,
+			    double dy);
 
 void
-litest_keyboard_key(struct litest_device *d,
-		    unsigned int key,
-		    bool is_press);
+litest_keyboard_key(struct litest_device *d, unsigned int key, bool is_press);
 
-void litest_switch_action(struct litest_device *d,
-			  enum libinput_switch sw,
-			  enum libinput_switch_state state);
+void
+litest_switch_action(struct litest_device *d,
+		     enum libinput_switch sw,
+		     enum libinput_switch_state state);
 
 void
 litest_wait_for_event(struct libinput *li);
 
 void
-_litest_wait_for_event_of_type(struct libinput *li,
-			       const char *func,
-			       int lineno,
-			       ...);
+_litest_wait_for_event_of_type(struct libinput *li, const char *func, int lineno, ...);
 
 #define litest_wait_for_event_of_type(li_, ...) \
 	_litest_wait_for_event_of_type(li_, __func__, __LINE__, __VA_ARGS__, -1)
@@ -1039,9 +1118,7 @@ _litest_assert_event_type_not_one_of(struct libinput_event *event,
 	_litest_assert_empty_queue(li_, __func__, __LINE__)
 
 void
-_litest_assert_empty_queue(struct libinput *li,
-			   const char *func,
-			   int line);
+_litest_assert_empty_queue(struct libinput *li, const char *func, int line);
 
 void
 litest_assert_touch_sequence(struct libinput *li);
@@ -1073,8 +1150,7 @@ struct libinput_event_pointer *
 litest_is_motion_event(struct libinput_event *event);
 
 struct libinput_event_touch *
-litest_is_touch_event(struct libinput_event *event,
-		      enum libinput_event_type type);
+litest_is_touch_event(struct libinput_event *event, enum libinput_event_type type);
 
 struct libinput_event_keyboard *
 litest_is_keyboard_event(struct libinput_event *event,
@@ -1087,16 +1163,14 @@ litest_is_gesture_event(struct libinput_event *event,
 			int nfingers);
 
 struct libinput_event_tablet_tool *
-litest_is_tablet_event(struct libinput_event *event,
-		       enum libinput_event_type type);
+litest_is_tablet_event(struct libinput_event *event, enum libinput_event_type type);
 
 struct libinput_event_tablet_pad *
 litest_is_pad_button_event(struct libinput_event *event,
 			   unsigned int button,
 			   enum libinput_button_state state);
 struct libinput_event_tablet_pad *
-litest_is_pad_dial_event(struct libinput_event *event,
-			 unsigned int number);
+litest_is_pad_dial_event(struct libinput_event *event, unsigned int number);
 struct libinput_event_tablet_pad *
 litest_is_pad_ring_event(struct libinput_event *event,
 			 unsigned int number,
@@ -1143,7 +1217,8 @@ void
 _litest_assert_button_event(struct libinput *li,
 			    unsigned int button,
 			    enum libinput_button_state state,
-			    const char *func, int line);
+			    const char *func,
+			    int line);
 
 #define litest_assert_switch_event(li_, sw_, state_)  \
 	_litest_assert_switch_event(li_, sw_, state_, __func__, __LINE__)
@@ -1176,12 +1251,10 @@ _litest_assert_only_typed_events(struct libinput *li,
 				 int line);
 
 void
-litest_assert_only_axis_events(struct libinput *li,
-			       enum libinput_event_type axis_type);
+litest_assert_only_axis_events(struct libinput *li, enum libinput_event_type axis_type);
 
 void
-litest_assert_no_typed_events(struct libinput *li,
-			      enum libinput_event_type type);
+litest_assert_no_typed_events(struct libinput *li, enum libinput_event_type type);
 
 #define litest_assert_tablet_button_event(li_, button_, state_) \
 	_litest_assert_tablet_button_event(li_, button_, state_, __func__, __LINE__)
@@ -1192,6 +1265,12 @@ _litest_assert_tablet_button_event(struct libinput *li,
 				   enum libinput_button_state state,
 				   const char *func,
 				   int lineno);
+
+#define litest_assert_tablet_axis_event(li_) \
+	_litest_assert_tablet_axis_event(li_, __func__, __LINE__)
+
+void
+_litest_assert_tablet_axis_event(struct libinput *li, const char *func, int lineno);
 
 #define litest_assert_tablet_proximity_event(li_, state_) \
 	_litest_assert_tablet_proximity_event(li_, state_, __func__, __LINE__)
@@ -1242,9 +1321,7 @@ _litest_assert_gesture_event(struct libinput *li,
 			     int line);
 
 struct libevdev_uinput *
-litest_create_uinput_device(const char *name,
-			    struct input_id *id,
-			    ...);
+litest_create_uinput_device(const char *name, struct input_id *id, ...);
 
 struct libevdev_uinput *
 litest_create_uinput_abs_device(const char *name,
@@ -1253,64 +1330,68 @@ litest_create_uinput_abs_device(const char *name,
 				...);
 
 void
-litest_timeout_tap(void);
+_litest_timeout(struct libinput *li, const char *func, int lineno, int millis);
+
+#define litest_timeout(li_, millis) \
+	_litest_timeout(li_, __func__, __LINE__, millis)
+
+#define litest_timeout_tap(li_) litest_timeout(li_, 300)
+#define litest_timeout_tapndrag(li_) litest_timeout(li_, 520)
+#define litest_timeout_debounce(li_) litest_timeout(li_, 30)
+#define litest_timeout_softbuttons(li_) litest_timeout(li_, 300)
+#define litest_timeout_buttonscroll(li_) litest_timeout(li_, 300)
+#define litest_timeout_wheel_scroll(li_) litest_timeout(li_, 600)
+#define litest_timeout_edgescroll(li_) litest_timeout(li_, 300)
+#define litest_timeout_finger_switch(li_) litest_timeout(li_, 140)
+#define litest_timeout_middlebutton(li_) litest_timeout(li_, 70)
+#define litest_timeout_dwt_short(li_) litest_timeout(li_, 220)
+#define litest_timeout_dwt_long(li_) litest_timeout(li_, 520)
+#define litest_timeout_gesture(li_) litest_timeout(li_, 120)
+#define litest_timeout_gesture_scroll(li_) litest_timeout(li_, 180)
+#define litest_timeout_gesture_hold(li_) litest_timeout(li_, 300)
+#define litest_timeout_gesture_quick_hold(li_) litest_timeout(li_, 60)
+#define litest_timeout_trackpoint(li_) litest_timeout(li_, 320)
+#define litest_timeout_tablet_proxout(li_) litest_timeout(li_, 170)
+#define litest_timeout_touch_arbitration(li_) litest_timeout(li_, 100)
+#define litest_timeout_hysteresis(li_) litest_timeout(li_, 90)
+#define litest_timeout_3fg_drag(li_) litest_timeout(li_, 800)
+#define litest_timeout_eraser_button(li_) litest_timeout(li_, 50)
+
+struct litest_logcapture {
+	char **errors;
+	char **infos;
+	char **debugs;
+};
 
 void
-litest_timeout_tapndrag(void);
+litest_logcapture_destroy(struct litest_logcapture *c);
+
+DEFINE_DESTROY_CLEANUP_FUNC(litest_logcapture);
+
+struct litest_logcapture *
+litest_logcapture_setup(struct libinput *li);
+
+struct litest_logcapture *
+litest_logcapture_remove(struct libinput *li, struct litest_logcapture *capture);
+
+#define litest_with_logcapture(li_, capture_) \
+	for (struct litest_logcapture *capture_ = litest_logcapture_setup(li_); \
+	     capture_ != NULL; \
+	     capture_ = litest_logcapture_remove(li_, capture_))
 
 void
-litest_timeout_debounce(void);
+_litest_assert_logcapture_no_errors(struct litest_logcapture *c,
+				    const char *file,
+				    const char *func,
+				    int lineno);
 
-void
-litest_timeout_softbuttons(void);
+#define litest_assert_logcapture_no_errors(c_) \
+	_litest_assert_logcapture_no_errors(c_, __FILE__, __func__, __LINE__)
 
-void
-litest_timeout_buttonscroll(void);
-
-void
-litest_timeout_wheel_scroll(void);
-
-void
-litest_timeout_edgescroll(void);
-
-void
-litest_timeout_finger_switch(void);
-
-void
-litest_timeout_middlebutton(void);
-
-void
-litest_timeout_dwt_short(void);
-
-void
-litest_timeout_dwt_long(void);
-
-void
-litest_timeout_gesture(void);
-
-void
-litest_timeout_gesture_scroll(void);
-
-void
-litest_timeout_gesture_hold(void);
-
-void
-litest_timeout_gesture_quick_hold(void);
-
-void
-litest_timeout_trackpoint(void);
-
-void
-litest_timeout_tablet_proxout(void);
-
-void
-litest_timeout_touch_arbitration(void);
-
-void
-litest_timeout_hysteresis(void);
-
-void
-litest_timeout_3fg_drag(void);
+#define litest_with_event_frame(dev_) \
+	for (bool _i = ({litest_push_event_frame(dev_); true; }); \
+	     _i; \
+	     ({ litest_pop_event_frame(dev_); _i = false; }))
 
 void
 litest_push_event_frame(struct litest_device *dev);
@@ -1319,34 +1400,31 @@ void
 litest_pop_event_frame(struct litest_device *dev);
 
 void
-litest_filter_event(struct litest_device *dev,
-		    unsigned int type,
-		    unsigned int code);
+litest_filter_event(struct litest_device *dev, unsigned int type, unsigned int code);
 
 void
-litest_unfilter_event(struct litest_device *dev,
-		      unsigned int type,
-		      unsigned int code);
+litest_unfilter_event(struct litest_device *dev, unsigned int type, unsigned int code);
 void
 litest_semi_mt_touch_down(struct litest_device *d,
 			  struct litest_semi_mt *semi_mt,
 			  unsigned int slot,
-			  double x, double y);
+			  double x,
+			  double y);
 
 void
 litest_semi_mt_touch_move(struct litest_device *d,
 			  struct litest_semi_mt *semi_mt,
 			  unsigned int slot,
-			  double x, double y);
+			  double x,
+			  double y);
 
 void
 litest_semi_mt_touch_up(struct litest_device *d,
 			struct litest_semi_mt *semi_mt,
 			unsigned int slot);
 
-static inline
-void litest_enable_3fg_drag(struct libinput_device *device,
-			    unsigned int nfingers)
+static inline void
+litest_enable_3fg_drag(struct libinput_device *device, unsigned int nfingers)
 {
 	enum libinput_config_3fg_drag_state enabled;
 
@@ -1408,8 +1486,9 @@ litest_enable_tap_drag(struct libinput_device *device)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_tap_set_drag_enabled(device,
-							     LIBINPUT_CONFIG_DRAG_ENABLED);
+	status = libinput_device_config_tap_set_drag_enabled(
+		device,
+		LIBINPUT_CONFIG_DRAG_ENABLED);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1420,8 +1499,9 @@ litest_disable_tap_drag(struct libinput_device *device)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_tap_set_drag_enabled(device,
-							     LIBINPUT_CONFIG_DRAG_DISABLED);
+	status = libinput_device_config_tap_set_drag_enabled(
+		device,
+		LIBINPUT_CONFIG_DRAG_DISABLED);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1442,7 +1522,7 @@ litest_enable_2fg_scroll(struct litest_device *dev)
 	struct libinput_device *device = dev->libinput_device;
 
 	status = libinput_device_config_scroll_set_method(device,
-					  LIBINPUT_CONFIG_SCROLL_2FG);
+							  LIBINPUT_CONFIG_SCROLL_2FG);
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
 	litest_assert_int_eq(status, expected);
@@ -1457,7 +1537,7 @@ litest_enable_edge_scroll(struct litest_device *dev)
 	struct libinput_device *device = dev->libinput_device;
 
 	status = libinput_device_config_scroll_set_method(device,
-					  LIBINPUT_CONFIG_SCROLL_EDGE);
+							  LIBINPUT_CONFIG_SCROLL_EDGE);
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
 	litest_assert_int_eq(status, expected);
@@ -1489,8 +1569,9 @@ litest_enable_clickfinger(struct litest_device *dev)
 	enum libinput_config_status status, expected;
 	struct libinput_device *device = dev->libinput_device;
 
-	status = libinput_device_config_click_set_method(device,
-				 LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER);
+	status = libinput_device_config_click_set_method(
+		device,
+		LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER);
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
 	litest_assert_int_eq(status, expected);
 }
@@ -1513,8 +1594,9 @@ litest_enable_buttonareas(struct litest_device *dev)
 	enum libinput_config_status status, expected;
 	struct libinput_device *device = dev->libinput_device;
 
-	status = libinput_device_config_click_set_method(device,
-				 LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS);
+	status = libinput_device_config_click_set_method(
+		device,
+		LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS);
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
 	litest_assert_int_eq(status, expected);
 }
@@ -1525,8 +1607,9 @@ litest_enable_drag_lock_sticky(struct libinput_device *device)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_tap_set_drag_lock_enabled(device,
-								  LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_STICKY);
+	status = libinput_device_config_tap_set_drag_lock_enabled(
+		device,
+		LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_STICKY);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1537,8 +1620,9 @@ litest_enable_drag_lock(struct libinput_device *device)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_tap_set_drag_lock_enabled(device,
-								  LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_TIMEOUT);
+	status = libinput_device_config_tap_set_drag_lock_enabled(
+		device,
+		LIBINPUT_CONFIG_DRAG_LOCK_ENABLED_TIMEOUT);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1549,8 +1633,9 @@ litest_disable_drag_lock(struct libinput_device *device)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_tap_set_drag_lock_enabled(device,
-								  LIBINPUT_CONFIG_DRAG_LOCK_DISABLED);
+	status = libinput_device_config_tap_set_drag_lock_enabled(
+		device,
+		LIBINPUT_CONFIG_DRAG_LOCK_DISABLED);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1562,8 +1647,9 @@ litest_enable_middleemu(struct litest_device *dev)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_middle_emulation_set_enabled(device,
-								     LIBINPUT_CONFIG_MIDDLE_EMULATION_ENABLED);
+	status = libinput_device_config_middle_emulation_set_enabled(
+		device,
+		LIBINPUT_CONFIG_MIDDLE_EMULATION_ENABLED);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1575,8 +1661,9 @@ litest_disable_middleemu(struct litest_device *dev)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_middle_emulation_set_enabled(device,
-								     LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
+	status = libinput_device_config_middle_emulation_set_enabled(
+		device,
+		LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1588,8 +1675,9 @@ litest_sendevents_off(struct litest_device *dev)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_send_events_set_mode(device,
-				    LIBINPUT_CONFIG_SEND_EVENTS_DISABLED);
+	status = libinput_device_config_send_events_set_mode(
+		device,
+		LIBINPUT_CONFIG_SEND_EVENTS_DISABLED);
 	litest_assert_int_eq(status, expected);
 }
 
@@ -1600,8 +1688,9 @@ litest_sendevents_on(struct litest_device *dev)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_send_events_set_mode(device,
-				    LIBINPUT_CONFIG_SEND_EVENTS_ENABLED);
+	status = libinput_device_config_send_events_set_mode(
+		device,
+		LIBINPUT_CONFIG_SEND_EVENTS_ENABLED);
 	litest_assert_int_eq(status, expected);
 }
 
@@ -1612,8 +1701,9 @@ litest_sendevents_ext_mouse(struct litest_device *dev)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_send_events_set_mode(device,
-				    LIBINPUT_CONFIG_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE);
+	status = libinput_device_config_send_events_set_mode(
+		device,
+		LIBINPUT_CONFIG_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE);
 	litest_assert_int_eq(status, expected);
 }
 
@@ -1623,8 +1713,9 @@ litest_enable_hold_gestures(struct libinput_device *device)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_gesture_set_hold_enabled(device,
-								 LIBINPUT_CONFIG_HOLD_ENABLED);
+	status = libinput_device_config_gesture_set_hold_enabled(
+		device,
+		LIBINPUT_CONFIG_HOLD_ENABLED);
 
 	litest_assert_int_eq(status, expected);
 }
@@ -1635,8 +1726,9 @@ litest_disable_hold_gestures(struct libinput_device *device)
 	enum libinput_config_status status, expected;
 
 	expected = LIBINPUT_CONFIG_STATUS_SUCCESS;
-	status = libinput_device_config_gesture_set_hold_enabled(device,
-								 LIBINPUT_CONFIG_HOLD_DISABLED);
+	status = libinput_device_config_gesture_set_hold_enabled(
+		device,
+		LIBINPUT_CONFIG_HOLD_DISABLED);
 
 	litest_assert_int_eq(status, expected);
 }

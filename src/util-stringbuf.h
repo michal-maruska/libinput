@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include "util-macros.h"
+#include "util-mem.h"
 
 struct stringbuf {
 	char *data;
@@ -56,7 +57,6 @@ stringbuf_reset(struct stringbuf *b)
 	b->data = NULL;
 	b->sz = 0;
 	b->len = 0;
-
 }
 
 static inline struct stringbuf *
@@ -73,6 +73,8 @@ stringbuf_destroy(struct stringbuf *b)
 	stringbuf_reset(b);
 	free(b);
 }
+
+DEFINE_DESTROY_CLEANUP_FUNC(stringbuf);
 
 static inline char *
 stringbuf_steal_destroy(struct stringbuf *b)
@@ -147,11 +149,11 @@ stringbuf_append_from_fd(struct stringbuf *b, int fd, size_t maxlen)
 static inline int
 stringbuf_append_string(struct stringbuf *b, const char *msg)
 {
-	int r = stringbuf_ensure_space(b, strlen(msg) + 1);
+	size_t slen = strlen(msg);
+
+	int r = stringbuf_ensure_space(b, slen + 1);
 	if (r < 0)
 		return r;
-
-	size_t slen = strlen(msg);
 
 	if (!b->data) /* cannot happen, but let's make scan-build happy */
 		abort();

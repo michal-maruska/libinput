@@ -25,17 +25,18 @@
 
 #include <inttypes.h>
 
-#include "libevdev/libevdev.h"
-
-#include "util-strings.h"
 #include "util-libinput.h"
+#include "util-mem.h"
+#include "util-strings.h"
+
+#include "libevdev/libevdev.h"
 
 static const char *
 event_type_to_str(enum libinput_event_type evtype)
 {
 	const char *type;
 
-	switch(evtype) {
+	switch (evtype) {
 	case LIBINPUT_EVENT_NONE:
 		abort();
 	case LIBINPUT_EVENT_DEVICE_ADDED:
@@ -176,70 +177,76 @@ static inline char *
 print_device_options(struct libinput_device *dev)
 {
 	uint32_t scroll_methods, click_methods;
-	char *tap = NULL,
-	     *scroll = NULL,
-	     *clickm = NULL,
-	     *dwt = NULL,
-	     *dwtp = NULL,
-	     *pad = NULL;
+	_autofree_ char *tap = NULL;
+	_autofree_ char *scroll = NULL;
+	_autofree_ char *clickm = NULL;
+	_autofree_ char *dwt = NULL;
+	_autofree_ char *dwtp = NULL;
+	_autofree_ char *pad = NULL;
 
 	if (libinput_device_config_tap_get_finger_count(dev)) {
-		tap = strdup_printf(" tap (dl %s)",
-				    onoff(libinput_device_config_tap_get_drag_lock_enabled(dev)));
+		tap = strdup_printf(
+			" tap (dl %s)",
+			onoff(libinput_device_config_tap_get_drag_lock_enabled(dev)));
 	}
 
 	scroll_methods = libinput_device_config_scroll_get_methods(dev);
 	if (scroll_methods != LIBINPUT_CONFIG_SCROLL_NO_SCROLL) {
-		scroll = strdup_printf(" scroll%s%s%s",
-			(scroll_methods & LIBINPUT_CONFIG_SCROLL_2FG) ?  "-2fg" : "",
+		scroll = strdup_printf(
+			" scroll%s%s%s",
+			(scroll_methods & LIBINPUT_CONFIG_SCROLL_2FG) ? "-2fg" : "",
 			(scroll_methods & LIBINPUT_CONFIG_SCROLL_EDGE) ? "-edge" : "",
-			(scroll_methods & LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN) ? "-button" : "");
+			(scroll_methods & LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN)
+				? "-button"
+				: "");
 	}
 
 	click_methods = libinput_device_config_click_get_methods(dev);
 	if (click_methods != LIBINPUT_CONFIG_CLICK_METHOD_NONE) {
-		clickm = strdup_printf(" click%s%s",
-				       (click_methods & LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS) ? "-buttonareas" : "",
-				       (click_methods & LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER) ? "-clickfinger" : "");
+		clickm = strdup_printf(
+			" click%s%s",
+			(click_methods & LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS)
+				? "-buttonareas"
+				: "",
+			(click_methods & LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER)
+				? "-clickfinger"
+				: "");
 	}
 
 	if (libinput_device_config_dwt_is_available(dev)) {
 		dwt = strdup_printf(" dwt-%s",
-				    onoff(libinput_device_config_dwt_get_enabled(dev) == LIBINPUT_CONFIG_DWT_ENABLED));
+				    onoff(libinput_device_config_dwt_get_enabled(dev) ==
+					  LIBINPUT_CONFIG_DWT_ENABLED));
 	}
 
 	if (libinput_device_config_dwtp_is_available(dev)) {
-		dwt = strdup_printf(" dwtp-%s",
-				    onoff(libinput_device_config_dwtp_get_enabled(dev) == LIBINPUT_CONFIG_DWTP_ENABLED));
+		dwtp = strdup_printf(
+			" dwtp-%s",
+			onoff(libinput_device_config_dwtp_get_enabled(dev) ==
+			      LIBINPUT_CONFIG_DWTP_ENABLED));
 	}
 
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_TABLET_PAD)) {
-		pad = strdup_printf(" buttons:%d strips:%d rings:%d mode groups:%d",
-				    libinput_device_tablet_pad_get_num_buttons(dev),
-				    libinput_device_tablet_pad_get_num_strips(dev),
-				    libinput_device_tablet_pad_get_num_rings(dev),
-				    libinput_device_tablet_pad_get_num_mode_groups(dev));
+	if (libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TABLET_PAD)) {
+		pad = strdup_printf(
+			" buttons:%d strips:%d rings:%d mode groups:%d",
+			libinput_device_tablet_pad_get_num_buttons(dev),
+			libinput_device_tablet_pad_get_num_strips(dev),
+			libinput_device_tablet_pad_get_num_rings(dev),
+			libinput_device_tablet_pad_get_num_mode_groups(dev));
 	}
 
-	char *str = strdup_printf("%s%s%s%s%s%s%s%s%s",
-				  tap ? tap : "",
-				  libinput_device_config_left_handed_is_available(dev) ? " left" : "",
-				  libinput_device_config_scroll_has_natural_scroll(dev) ? " scroll-nat" : "",
-				  libinput_device_config_calibration_has_matrix(dev) ? " calib" : "",
-				  scroll ? scroll : "",
-				  clickm ? clickm : "",
-				  dwt ? dwt : "",
-				  dwtp ? dwtp : "",
-				  pad ? pad : "");
-	free(tap);
-	free(scroll);
-	free(clickm);
-	free(dwt);
-	free(dwtp);
-	free(pad);
-
-	return str;
+	return strdup_printf(
+		"%s%s%s%s%s%s%s%s%s",
+		tap ? tap : "",
+		libinput_device_config_left_handed_is_available(dev) ? " left" : "",
+		libinput_device_config_scroll_has_natural_scroll(dev) ? " scroll-nat"
+								      : "",
+		libinput_device_config_calibration_has_matrix(dev) ? " calib" : "",
+		scroll ? scroll : "",
+		clickm ? clickm : "",
+		dwt ? dwt : "",
+		dwtp ? dwtp : "",
+		pad ? pad : "");
 }
 
 static char *
@@ -251,47 +258,52 @@ print_device_notify(struct libinput_event *ev)
 	double w, h;
 	static int next_group_id = 0;
 	intptr_t group_id;
-	char *size = NULL,
-	     *ntouches = NULL,
-	     *options = NULL;
+	_autofree_ char *size = NULL;
+	_autofree_ char *ntouches = NULL;
+	_autofree_ char *options = NULL;
 
 	group = libinput_device_get_device_group(dev);
 	group_id = (intptr_t)libinput_device_group_get_user_data(group);
 	if (!group_id) {
 		group_id = ++next_group_id;
-		libinput_device_group_set_user_data(group, (void*)group_id);
+		libinput_device_group_set_user_data(group, (void *)group_id);
 	}
 
 	if (libinput_device_get_size(dev, &w, &h) == 0)
 		size = strdup_printf("  size %.0fx%.0fmm", w, h);
 
-	if (libinput_device_has_capability(dev,
-					   LIBINPUT_DEVICE_CAP_TOUCH))
-		ntouches = strdup_printf(" ntouches %d", libinput_device_touch_get_touch_count(dev));
+	if (libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TOUCH))
+		ntouches = strdup_printf(" ntouches %d",
+					 libinput_device_touch_get_touch_count(dev));
 
 	if (libinput_event_get_type(ev) == LIBINPUT_EVENT_DEVICE_ADDED)
 		options = print_device_options(dev);
 
-	char *str = strdup_printf("%-33s %5s %7s group%-2d cap:%s%s%s%s%s%s%s%s%s%s",
-				  libinput_device_get_name(dev),
-				  libinput_seat_get_physical_name(seat),
-				  libinput_seat_get_logical_name(seat),
-				  (int)group_id,
-				  libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_KEYBOARD) ? "k" : "",
-				  libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_POINTER) ? "p" : "",
-				  libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TOUCH) ? "t" : "",
-				  libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_GESTURE) ? "g" : "",
-				  libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TABLET_TOOL) ? "T" : "",
-				  libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TABLET_PAD) ? "P" : "",
-				  libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_SWITCH) ? "S"  : "",
-				  size ? size : "",
-				  ntouches ? ntouches : "",
-				  options ? options : "");
-	free(size);
-	free(ntouches);
-	free(options);
-
-	return str;
+	return strdup_printf(
+		"%-33s %5s %7s group%-2d cap:%s%s%s%s%s%s%s%s%s%s",
+		libinput_device_get_name(dev),
+		libinput_seat_get_physical_name(seat),
+		libinput_seat_get_logical_name(seat),
+		(int)group_id,
+		libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_KEYBOARD) ? "k"
+										  : "",
+		libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_POINTER) ? "p"
+										 : "",
+		libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TOUCH) ? "t"
+									       : "",
+		libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_GESTURE) ? "g"
+										 : "",
+		libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TABLET_TOOL)
+			? "T"
+			: "",
+		libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_TABLET_PAD)
+			? "P"
+			: "",
+		libinput_device_has_capability(dev, LIBINPUT_DEVICE_CAP_SWITCH) ? "S"
+										: "",
+		size ? size : "",
+		ntouches ? ntouches : "",
+		options ? options : "");
 }
 
 static char *
@@ -318,7 +330,8 @@ print_key_event(struct libinput_event *ev, const struct libinput_print_options *
 			     time,
 			     keyname,
 			     key,
-			     state == LIBINPUT_KEY_STATE_PRESSED ? "pressed" : "released");
+			     state == LIBINPUT_KEY_STATE_PRESSED ? "pressed"
+								 : "released");
 }
 
 static char *
@@ -337,13 +350,16 @@ print_motion_event(struct libinput_event *ev, const struct libinput_print_option
 }
 
 static char *
-print_absmotion_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_absmotion_event(struct libinput_event *ev,
+		      const struct libinput_print_options *opts)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
-	double x = libinput_event_pointer_get_absolute_x_transformed(
-		p, opts->screen_width);
-	double y = libinput_event_pointer_get_absolute_y_transformed(
-		p, opts->screen_height);
+	double x =
+		libinput_event_pointer_get_absolute_x_transformed(p,
+								  opts->screen_width);
+	double y =
+		libinput_event_pointer_get_absolute_y_transformed(p,
+								  opts->screen_height);
 	char time[16];
 
 	print_event_time(time, opts->start_time, libinput_event_pointer_get_time(p));
@@ -351,7 +367,8 @@ print_absmotion_event(struct libinput_event *ev, const struct libinput_print_opt
 }
 
 static char *
-print_pointer_button_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_pointer_button_event(struct libinput_event *ev,
+			   const struct libinput_print_options *opts)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
 	enum libinput_button_state state;
@@ -369,7 +386,8 @@ print_pointer_button_event(struct libinput_event *ev, const struct libinput_prin
 			     time,
 			     buttonname ? buttonname : "???",
 			     button,
-			     state == LIBINPUT_BUTTON_STATE_PRESSED ? "pressed" : "released",
+			     state == LIBINPUT_BUTTON_STATE_PRESSED ? "pressed"
+								    : "released",
 			     libinput_event_pointer_get_seat_button_count(p));
 }
 
@@ -378,22 +396,24 @@ print_tablet_axes(struct libinput_event_tablet_tool *t)
 {
 	struct libinput_tablet_tool *tool = libinput_event_tablet_tool_get_tool(t);
 	double x, y;
-	char *tilt = NULL,
-	     *distance = NULL,
-	     *rot = NULL,
-	     *whl = NULL,
-	     *sld = NULL,
-	     *size = NULL;
+	_autofree_ char *tilt = NULL;
+	_autofree_ char *distance = NULL;
+	_autofree_ char *rot = NULL;
+	_autofree_ char *whl = NULL;
+	_autofree_ char *sld = NULL;
+	_autofree_ char *size = NULL;
 
 #define changed_sym(ev, ax) \
-	(libinput_event_tablet_tool_##ax##_has_changed(ev) ? "*" : "")
+	(libinput_event_tablet_tool_##ax##_has_changed(ev) ? "*" : " ")
 
 	if (libinput_tablet_tool_has_tilt(tool)) {
 		x = libinput_event_tablet_tool_get_tilt_x(t);
 		y = libinput_event_tablet_tool_get_tilt_y(t);
 		tilt = strdup_printf("\ttilt: %.2f%s/%.2f%s",
-				     x, changed_sym(t, tilt_x),
-				     y, changed_sym(t, tilt_y));
+				     x,
+				     changed_sym(t, tilt_x),
+				     y,
+				     changed_sym(t, tilt_y));
 	}
 
 	if (libinput_tablet_tool_has_distance(tool) ||
@@ -402,29 +422,32 @@ print_tablet_axes(struct libinput_event_tablet_tool *t)
 		double pressure = libinput_event_tablet_tool_get_pressure(t);
 		if (dist)
 			distance = strdup_printf("\tdistance: %.2f%s",
-						 dist, changed_sym(t, distance));
+						 dist,
+						 changed_sym(t, distance));
 		else
 			distance = strdup_printf("\tpressure: %.2f%s",
-						 pressure, changed_sym(t, pressure));
+						 pressure,
+						 changed_sym(t, pressure));
 	}
 
 	if (libinput_tablet_tool_has_rotation(tool)) {
 		double rotation = libinput_event_tablet_tool_get_rotation(t);
 		rot = strdup_printf("\trotation: %6.2f%s",
-				    rotation, changed_sym(t, rotation));
+				    rotation,
+				    changed_sym(t, rotation));
 	}
 
 	if (libinput_tablet_tool_has_slider(tool)) {
 		double slider = libinput_event_tablet_tool_get_slider_position(t);
-		sld = strdup_printf("\tslider: %.2f%s",
-				    slider, changed_sym(t, slider));
+		sld = strdup_printf("\tslider: %.2f%s", slider, changed_sym(t, slider));
 	}
 
 	if (libinput_tablet_tool_has_wheel(tool)) {
 		double wheel = libinput_event_tablet_tool_get_wheel_delta(t);
 		double delta = libinput_event_tablet_tool_get_wheel_delta_discrete(t);
 		whl = strdup_printf("\twheel: %.2f%s (%d)",
-				    wheel, changed_sym(t, wheel),
+				    wheel,
+				    changed_sym(t, wheel),
 				    (int)delta);
 	}
 
@@ -432,54 +455,51 @@ print_tablet_axes(struct libinput_event_tablet_tool *t)
 		double major = libinput_event_tablet_tool_get_size_major(t);
 		double minor = libinput_event_tablet_tool_get_size_minor(t);
 		size = strdup_printf("\tsize: %.2f%s/%.2f%s",
-				     major, changed_sym(t, size_major),
-				     minor, changed_sym(t, size_minor));
+				     major,
+				     changed_sym(t, size_major),
+				     minor,
+				     changed_sym(t, size_minor));
 	}
 
 	x = libinput_event_tablet_tool_get_x(t);
 	y = libinput_event_tablet_tool_get_y(t);
-	char *str = strdup_printf("\t%.2f%s/%.2f%s%s%s%s%s%s%s",
-				  x, changed_sym(t, x),
-				  y, changed_sym(t, y),
-				  tilt ? tilt : "",
-				  distance ? distance : "",
-				  rot ? rot : "",
-				  whl ? whl : "",
-				  sld ? sld : "",
-				  size ? size : "");
-	free(tilt);
-	free(distance);
-	free(rot);
-	free(whl);
-	free(sld);
-	free(size);
-
-	return str;
+	return strdup_printf("\t%.2f%s/%.2f%s%s%s%s%s%s%s",
+			     x,
+			     changed_sym(t, x),
+			     y,
+			     changed_sym(t, y),
+			     tilt ? tilt : "",
+			     distance ? distance : "",
+			     rot ? rot : "",
+			     whl ? whl : "",
+			     sld ? sld : "",
+			     size ? size : "");
 }
 
 static char *
-print_tablet_tip_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_tip_event(struct libinput_event *ev,
+		       const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_tool *t = libinput_event_get_tablet_tool_event(ev);
 	enum libinput_tablet_tool_tip_state state;
 	char time[16];
 
-	print_event_time(time, opts->start_time, libinput_event_tablet_tool_get_time(t));
+	print_event_time(time,
+			 opts->start_time,
+			 libinput_event_tablet_tool_get_time(t));
 
-	char *axes = print_tablet_axes(t);
+	_autofree_ char *axes = print_tablet_axes(t);
 
 	state = libinput_event_tablet_tool_get_tip_state(t);
-	char *str = strdup_printf("%s\t%s %s",
-				  time,
-				  axes,
-				  state == LIBINPUT_TABLET_TOOL_TIP_DOWN ? "down" : "up");
-	free(axes);
-
-	return str;
+	return strdup_printf("%s\t%s %s",
+			     time,
+			     axes,
+			     state == LIBINPUT_TABLET_TOOL_TIP_DOWN ? "down" : "up");
 }
 
 static char *
-print_tablet_button_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_button_event(struct libinput_event *ev,
+			  const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_tool *p = libinput_event_get_tablet_tool_event(ev);
 	enum libinput_button_state state;
@@ -487,7 +507,9 @@ print_tablet_button_event(struct libinput_event *ev, const struct libinput_print
 	int button;
 	char time[16];
 
-	print_event_time(time, opts->start_time, libinput_event_tablet_tool_get_time(p));
+	print_event_time(time,
+			 opts->start_time,
+			 libinput_event_tablet_tool_get_time(p));
 
 	button = libinput_event_tablet_tool_get_button(p);
 	buttonname = libevdev_event_code_get_name(EV_KEY, button);
@@ -497,17 +519,74 @@ print_tablet_button_event(struct libinput_event *ev, const struct libinput_print
 			     time,
 			     button,
 			     buttonname ? buttonname : "???",
-			     state == LIBINPUT_BUTTON_STATE_PRESSED ? "pressed" : "released",
+			     state == LIBINPUT_BUTTON_STATE_PRESSED ? "pressed"
+								    : "released",
 			     libinput_event_tablet_tool_get_seat_button_count(p));
 }
 
 static char *
-print_pointer_axis_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_legacy_pointer_axis_event(struct libinput_event *ev,
+				const struct libinput_print_options *opts)
+{
+	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
+	double v = 0, h = 0;
+	int v_discrete = 0, h_discrete = 0;
+	const char *have_vert = "", *have_horiz = "";
+	const char *source = NULL;
+	enum libinput_pointer_axis axis;
+	char time[16];
+
+	switch (libinput_event_pointer_get_axis_source(p)) {
+	case LIBINPUT_POINTER_AXIS_SOURCE_WHEEL:
+		source = "wheel";
+		break;
+	case LIBINPUT_POINTER_AXIS_SOURCE_FINGER:
+		source = "finger";
+		break;
+	case LIBINPUT_POINTER_AXIS_SOURCE_CONTINUOUS:
+		source = "continuous";
+		break;
+	case LIBINPUT_POINTER_AXIS_SOURCE_WHEEL_TILT:
+		/* No device uses wheel tilt */
+		abort();
+		break;
+	default:
+		abort();
+		break;
+	}
+
+	axis = LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL;
+	if (libinput_event_pointer_has_axis(p, axis)) {
+		v = libinput_event_pointer_get_axis_value(p, axis);
+		v_discrete = libinput_event_pointer_get_axis_value_discrete(p, axis);
+		have_vert = "*";
+	}
+	axis = LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL;
+	if (libinput_event_pointer_has_axis(p, axis)) {
+		h = libinput_event_pointer_get_axis_value(p, axis);
+		h_discrete = libinput_event_pointer_get_axis_value_discrete(p, axis);
+		have_horiz = "*";
+	}
+
+	print_event_time(time, opts->start_time, libinput_event_pointer_get_time(p));
+	return strdup_printf("%s\tvert %.2f/%d%s horiz %.2f/%d%s (%s)",
+			     time,
+			     v,
+			     v_discrete,
+			     have_vert,
+			     h,
+			     h_discrete,
+			     have_horiz,
+			     source);
+}
+
+static char *
+print_pointer_axis_event(struct libinput_event *ev,
+			 const struct libinput_print_options *opts)
 {
 	struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
 	double v = 0, h = 0, v120 = 0, h120 = 0;
-	const char *have_vert = "",
-		   *have_horiz = "";
+	const char *have_vert = "", *have_horiz = "";
 	const char *source = NULL;
 	enum libinput_pointer_axis axis;
 	enum libinput_event_type type;
@@ -548,35 +627,41 @@ print_pointer_axis_event(struct libinput_event *ev, const struct libinput_print_
 	print_event_time(time, opts->start_time, libinput_event_pointer_get_time(p));
 	return strdup_printf("%s\tvert %.2f/%.1f%s horiz %.2f/%.1f%s (%s)",
 			     time,
-			     v, v120, have_vert,
-			     h, h120, have_horiz, source);
+			     v,
+			     v120,
+			     have_vert,
+			     h,
+			     h120,
+			     have_horiz,
+			     source);
 }
 
 static char *
-print_tablet_axis_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_axis_event(struct libinput_event *ev,
+			const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_tool *t = libinput_event_get_tablet_tool_event(ev);
 	char time[16];
 
-	print_event_time(time, opts->start_time, libinput_event_tablet_tool_get_time(t));
-	char *axes = print_tablet_axes(t);
+	print_event_time(time,
+			 opts->start_time,
+			 libinput_event_tablet_tool_get_time(t));
+	_autofree_ char *axes = print_tablet_axes(t);
 
-	char *str = strdup_printf("%s\t%s", time, axes);
-	free(axes);
-	return str;
+	return strdup_printf("%s\t%s", time, axes);
 }
 
 static char *
-print_proximity_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_proximity_event(struct libinput_event *ev,
+		      const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_tool *t = libinput_event_get_tablet_tool_event(ev);
 	struct libinput_tablet_tool *tool = libinput_event_tablet_tool_get_tool(t);
 	enum libinput_tablet_tool_proximity_state state;
-	const char *tool_str,
-	           *state_str;
+	const char *tool_str, *state_str;
 	char time[16];
-	char *axes = NULL,
-	     *proxin = NULL;
+	_autofree_ char *axes = NULL;
+	_autofree_ char *proxin = NULL;
 
 	switch (libinput_tablet_tool_get_type(tool)) {
 	case LIBINPUT_TABLET_TOOL_TYPE_PEN:
@@ -609,7 +694,9 @@ print_proximity_event(struct libinput_event *ev, const struct libinput_print_opt
 
 	state = libinput_event_tablet_tool_get_proximity_state(t);
 
-	print_event_time(time, opts->start_time, libinput_event_tablet_tool_get_time(t));
+	print_event_time(time,
+			 opts->start_time,
+			 libinput_event_tablet_tool_get_time(t));
 
 	if (state == LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN) {
 		axes = print_tablet_axes(t);
@@ -622,37 +709,34 @@ print_proximity_event(struct libinput_event *ev, const struct libinput_print_opt
 	}
 
 	if (state == LIBINPUT_TABLET_TOOL_PROXIMITY_STATE_IN) {
-		proxin = strdup_printf("\taxes:%s%s%s%s%s%s\tbtn:%s%s%s%s%s%s%s%s%s%s",
-		libinput_tablet_tool_has_distance(tool) ? "d" : "",
-		libinput_tablet_tool_has_pressure(tool) ? "p" : "",
-		libinput_tablet_tool_has_tilt(tool) ? "t" : "",
-		libinput_tablet_tool_has_rotation(tool) ? "r" : "",
-		libinput_tablet_tool_has_slider(tool) ? "s" : "",
-		libinput_tablet_tool_has_wheel(tool) ? "w" : "",
-		libinput_tablet_tool_has_size(tool) ? "S" : "",
-		libinput_tablet_tool_has_button(tool, BTN_TOUCH) ? "T" : "",
-		libinput_tablet_tool_has_button(tool, BTN_STYLUS) ? "S" : "",
-		libinput_tablet_tool_has_button(tool, BTN_STYLUS2) ? "S2" : "",
-		libinput_tablet_tool_has_button(tool, BTN_LEFT) ? "L" : "",
-		libinput_tablet_tool_has_button(tool, BTN_MIDDLE) ? "M" : "",
-		libinput_tablet_tool_has_button(tool, BTN_RIGHT) ? "R" : "",
-		libinput_tablet_tool_has_button(tool, BTN_SIDE) ? "Sd" : "",
-		libinput_tablet_tool_has_button(tool, BTN_EXTRA) ? "Ex" : "",
-		libinput_tablet_tool_has_button(tool, BTN_0) ? "0" : "");
+		proxin = strdup_printf(
+			"\taxes:%s%s%s%s%s%s\tbtn:%s%s%s%s%s%s%s%s%s%s",
+			libinput_tablet_tool_has_distance(tool) ? "d" : "",
+			libinput_tablet_tool_has_pressure(tool) ? "p" : "",
+			libinput_tablet_tool_has_tilt(tool) ? "t" : "",
+			libinput_tablet_tool_has_rotation(tool) ? "r" : "",
+			libinput_tablet_tool_has_slider(tool) ? "s" : "",
+			libinput_tablet_tool_has_wheel(tool) ? "w" : "",
+			libinput_tablet_tool_has_size(tool) ? "S" : "",
+			libinput_tablet_tool_has_button(tool, BTN_TOUCH) ? "T" : "",
+			libinput_tablet_tool_has_button(tool, BTN_STYLUS) ? "S" : "",
+			libinput_tablet_tool_has_button(tool, BTN_STYLUS2) ? "S2" : "",
+			libinput_tablet_tool_has_button(tool, BTN_LEFT) ? "L" : "",
+			libinput_tablet_tool_has_button(tool, BTN_MIDDLE) ? "M" : "",
+			libinput_tablet_tool_has_button(tool, BTN_RIGHT) ? "R" : "",
+			libinput_tablet_tool_has_button(tool, BTN_SIDE) ? "Sd" : "",
+			libinput_tablet_tool_has_button(tool, BTN_EXTRA) ? "Ex" : "",
+			libinput_tablet_tool_has_button(tool, BTN_0) ? "0" : "");
 	}
 
-	char *str = strdup_printf("%s\t%s\t%-8s (%#" PRIx64 ", id %#" PRIx64 ") %s%s",
-				  time,
-				  axes ? axes : "",
-				  tool_str,
-				  libinput_tablet_tool_get_serial(tool),
-				  libinput_tablet_tool_get_tool_id(tool),
-				  state_str,
-				  proxin ? proxin : "");
-	free(axes);
-	free(proxin);
-
-	return str;
+	return strdup_printf("%s\t%s\t%-8s (%#" PRIx64 ", id %#" PRIx64 ") %s%s",
+			     time,
+			     axes ? axes : "",
+			     tool_str,
+			     libinput_tablet_tool_get_serial(tool),
+			     libinput_tablet_tool_get_tool_id(tool),
+			     state_str,
+			     proxin ? proxin : "");
 }
 
 static char *
@@ -661,8 +745,8 @@ print_touch_event(struct libinput_event *ev, const struct libinput_print_options
 	struct libinput_event_touch *t = libinput_event_get_touch_event(ev);
 	enum libinput_event_type type = libinput_event_get_type(ev);
 	char time[16];
-	char *slot = NULL,
-	     *pos = NULL;
+	_autofree_ char *slot = NULL;
+	_autofree_ char *pos = NULL;
 
 	print_event_time(time, opts->start_time, libinput_event_touch_get_time(t));
 
@@ -672,27 +756,23 @@ print_touch_event(struct libinput_event *ev, const struct libinput_print_options
 				     libinput_event_touch_get_seat_slot(t));
 	}
 
-	if (type == LIBINPUT_EVENT_TOUCH_DOWN ||
-	    type == LIBINPUT_EVENT_TOUCH_MOTION) {
-		double x = libinput_event_touch_get_x_transformed(t, opts->screen_width);
-		double y = libinput_event_touch_get_y_transformed(t, opts->screen_height);
+	if (type == LIBINPUT_EVENT_TOUCH_DOWN || type == LIBINPUT_EVENT_TOUCH_MOTION) {
+		double x =
+			libinput_event_touch_get_x_transformed(t, opts->screen_width);
+		double y =
+			libinput_event_touch_get_y_transformed(t, opts->screen_height);
 		double xmm = libinput_event_touch_get_x(t);
 		double ymm = libinput_event_touch_get_y(t);
 
 		pos = strdup_printf(" %5.2f/%5.2f (%5.2f/%5.2fmm)", x, y, xmm, ymm);
 	}
 
-	char *str = strdup_printf("%s\t%s%s",
-				  time,
-				  slot ? slot : "",
-				  pos ? pos : "");
-	free(slot);
-	free(pos);
-	return str;
+	return strdup_printf("%s\t%s%s", time, slot ? slot : "", pos ? pos : "");
 }
 
 static char *
-print_gesture_event_without_coords(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_gesture_event_without_coords(struct libinput_event *ev,
+				   const struct libinput_print_options *opts)
 {
 	struct libinput_event_gesture *t = libinput_event_get_gesture_event(ev);
 	int finger_count = libinput_event_gesture_get_finger_count(t);
@@ -705,14 +785,18 @@ print_gesture_event_without_coords(struct libinput_event *ev, const struct libin
 	if (type == LIBINPUT_EVENT_GESTURE_SWIPE_END ||
 	    type == LIBINPUT_EVENT_GESTURE_PINCH_END ||
 	    type == LIBINPUT_EVENT_GESTURE_HOLD_END)
-	    cancelled = libinput_event_gesture_get_cancelled(t);
+		cancelled = libinput_event_gesture_get_cancelled(t);
 
 	print_event_time(time, opts->start_time, libinput_event_gesture_get_time(t));
-	return strdup_printf("%s\t%d%s", time, finger_count, cancelled ? " cancelled" : "");
+	return strdup_printf("%s\t%d%s",
+			     time,
+			     finger_count,
+			     cancelled ? " cancelled" : "");
 }
 
 static char *
-print_gesture_event_with_coords(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_gesture_event_with_coords(struct libinput_event *ev,
+				const struct libinput_print_options *opts)
 {
 	struct libinput_event_gesture *t = libinput_event_get_gesture_event(ev);
 	double dx = libinput_event_gesture_get_dx(t);
@@ -720,36 +804,37 @@ print_gesture_event_with_coords(struct libinput_event *ev, const struct libinput
 	double dx_unaccel = libinput_event_gesture_get_dx_unaccelerated(t);
 	double dy_unaccel = libinput_event_gesture_get_dy_unaccelerated(t);
 	char time[16];
-	char *pinch = NULL;
+	_autofree_ char *pinch = NULL;
 
 	print_event_time(time, opts->start_time, libinput_event_gesture_get_time(t));
 
-	if (libinput_event_get_type(ev) ==
-	    LIBINPUT_EVENT_GESTURE_PINCH_UPDATE) {
+	if (libinput_event_get_type(ev) == LIBINPUT_EVENT_GESTURE_PINCH_UPDATE) {
 		double scale = libinput_event_gesture_get_scale(t);
 		double angle = libinput_event_gesture_get_angle_delta(t);
 
 		pinch = strdup_printf(" %5.2f @ %5.2f", scale, angle);
 	}
 
-	char *str = strdup_printf("%s\t%d %5.2f/%5.2f (%5.2f/%5.2f unaccelerated)%s",
-				  time,
-				  libinput_event_gesture_get_finger_count(t),
-				  dx, dy, dx_unaccel, dy_unaccel,
-				  pinch ? pinch : "");
-	free(pinch);
-	return str;
+	return strdup_printf("%s\t%d %5.2f/%5.2f (%5.2f/%5.2f unaccelerated)%s",
+			     time,
+			     libinput_event_gesture_get_finger_count(t),
+			     dx,
+			     dy,
+			     dx_unaccel,
+			     dy_unaccel,
+			     pinch ? pinch : "");
 }
 
 static char *
-print_tablet_pad_button_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_pad_button_event(struct libinput_event *ev,
+			      const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_pad *p = libinput_event_get_tablet_pad_event(ev);
 	struct libinput_tablet_pad_mode_group *group;
 	enum libinput_button_state state;
 	unsigned int button, mode;
 	char time[16];
-	char *toggle = NULL;
+	const char *toggle = NULL;
 
 	print_event_time(time, opts->start_time, libinput_event_tablet_pad_get_time(p));
 
@@ -763,13 +848,15 @@ print_tablet_pad_button_event(struct libinput_event *ev, const struct libinput_p
 
 	return strdup_printf("%3d %s (mode %d)%s",
 			     button,
-			     state == LIBINPUT_BUTTON_STATE_PRESSED ? "pressed" : "released",
+			     state == LIBINPUT_BUTTON_STATE_PRESSED ? "pressed"
+								    : "released",
 			     mode,
 			     toggle ? toggle : "");
 }
 
 static char *
-print_tablet_pad_ring_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_pad_ring_event(struct libinput_event *ev,
+			    const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_pad *p = libinput_event_get_tablet_pad_event(ev);
 	const char *source = NULL;
@@ -797,7 +884,8 @@ print_tablet_pad_ring_event(struct libinput_event *ev, const struct libinput_pri
 }
 
 static char *
-print_tablet_pad_strip_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_pad_strip_event(struct libinput_event *ev,
+			     const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_pad *p = libinput_event_get_tablet_pad_event(ev);
 	const char *source = NULL;
@@ -825,7 +913,8 @@ print_tablet_pad_strip_event(struct libinput_event *ev, const struct libinput_pr
 }
 
 static char *
-print_tablet_pad_key_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_pad_key_event(struct libinput_event *ev,
+			   const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_pad *p = libinput_event_get_tablet_pad_event(ev);
 	enum libinput_key_state state;
@@ -848,11 +937,13 @@ print_tablet_pad_key_event(struct libinput_event *ev, const struct libinput_prin
 			     time,
 			     keyname,
 			     key,
-			     state == LIBINPUT_KEY_STATE_PRESSED ? "pressed" : "released");
+			     state == LIBINPUT_KEY_STATE_PRESSED ? "pressed"
+								 : "released");
 }
 
 static char *
-print_tablet_pad_dial_event(struct libinput_event *ev, const struct libinput_print_options *opts)
+print_tablet_pad_dial_event(struct libinput_event *ev,
+			    const struct libinput_print_options *opts)
 {
 	struct libinput_event_tablet_pad *p = libinput_event_get_tablet_pad_event(ev);
 	unsigned int mode;
@@ -900,14 +991,18 @@ libinput_event_to_str(struct libinput_event *ev,
 		      const struct libinput_print_options *options)
 {
 	enum libinput_event_type type = libinput_event_get_type(ev);
-	char *event_header = print_event_header(ev, event_repeat_count);
-	char *event_str = NULL;
+	_autofree_ char *event_header = print_event_header(ev, event_repeat_count);
+	_autofree_ char *event_str = NULL;
 
 	struct libinput_print_options opts = {
 		.start_time = options ? options->start_time : 0,
 		.show_keycodes = options ? options->show_keycodes : true,
-		.screen_width = (options && options->screen_width > 0) ? options->screen_width : 100,
-		.screen_height = (options && options->screen_height > 0) ? options->screen_height : 100,
+		.screen_width = (options && options->screen_width > 0)
+					? options->screen_width
+					: 100,
+		.screen_height = (options && options->screen_height > 0)
+					 ? options->screen_height
+					 : 100,
 
 	};
 
@@ -933,7 +1028,7 @@ libinput_event_to_str(struct libinput_event *ev,
 		event_str = print_pointer_button_event(ev, &opts);
 		break;
 	case LIBINPUT_EVENT_POINTER_AXIS:
-		/* ignore */
+		event_str = print_legacy_pointer_axis_event(ev, &opts);
 		break;
 	case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
 	case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
@@ -1005,8 +1100,5 @@ libinput_event_to_str(struct libinput_event *ev,
 		break;
 	}
 
-	char *str = strdup_printf("%s %s", event_header, event_str);
-	free(event_header);
-	free(event_str);
-	return str;
+	return strdup_printf("%s %s", event_header, event_str);
 }

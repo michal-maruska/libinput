@@ -3,14 +3,14 @@
 #
 
 # We're happy to rebuild all containers when one changes.
-.default_tag: &default_tag '2024-05-13.0'
+.default_tag: &default_tag '2025-05-19.0'
 
 distributions:
   - name: fedora
     tag: *default_tag
     versions:
-      - '40'
       - '41'
+      - '42'
     use_for_custom_build_tests: true
     use_for_qemu_tests: true
     packages:
@@ -36,7 +36,8 @@ distributions:
       - diffutils
       - wayland-protocols-devel
       - black           # for the Python black job, optional
-      - clang-analyzer  # for the scan-build job, optional
+      - clang           # for the clang-tidy build, optional
+      - clang-tools-extra  # for clang-tidy, optional
       - jq              # for the test suite check job, optional
       - rpmdevtools     # for the rpm build job, optional
       - valgrind        # for the valgrind run, optional
@@ -48,6 +49,7 @@ distributions:
       - jq
       - python3-click
       - python3-rich
+      - virtme-ng
   - name: debian
     tag: *default_tag
     versions:
@@ -76,7 +78,7 @@ distributions:
   - name: ubuntu
     tag: *default_tag
     versions:
-      - '22.04'
+      - '25.04'
     packages:
       - git
       - gcc
@@ -109,17 +111,14 @@ distributions:
       - check
       - libsystemd
       - libevdev
-      - doxygen
-      - graphviz
-      - python-sphinx
-      - python-recommonmark
-      - python-sphinx_rtd_theme
       - python-pytest-xdist
       - libwacom
       - gtk4
       - mtdev
       - diffutils
-      - wayland-protocols
+    build:
+      extra_variables:
+        - "MESON_ARGS: '-Ddocumentation=false'" # python-recommonmark is no longer in the repos
   - name: alpine
     tag: *default_tag
     versions:
@@ -148,7 +147,7 @@ distributions:
     tag: *default_tag
     qemu_based: true
     versions:
-      - '13.2'
+      - '14.2'
     packages:
       - git
       - pkgconf
@@ -196,6 +195,13 @@ test_suites:
   - name: tablet_left_handed
     suites:
       - tablet_left_handed
+  - name: tablet_proximity_tip
+    suites:
+      - tablet_proximity
+      - tablet_tip
+  - name: tablet_eraser
+    suites:
+      - tablet_eraser
   - name: gestures
     suites:
       - gestures
@@ -222,6 +228,5 @@ test_suites:
     suites:
       - pointer
 
-b2c:
-  version: 24beb454c62fe59143d7ceb4f5a7d25a3c029559
-  kernel: https://gitlab.freedesktop.org/api/v4/projects/libevdev%2Fhid-tools/packages/generic/kernel-x86_64/v6.5/bzImage
+vng:
+  kernel: https://gitlab.freedesktop.org/api/v4/projects/libevdev%2Fhid-tools/packages/generic/kernel-x86_64/v6.14/bzImage

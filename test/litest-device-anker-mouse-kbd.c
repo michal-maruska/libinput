@@ -23,8 +23,8 @@
 
 #include "config.h"
 
-#include "litest.h"
 #include "litest-int.h"
+#include "litest.h"
 
 /* Recording from https://bugs.freedesktop.org/show_bug.cgi?id=93474
  * This is the keyboard device for this mouse.
@@ -36,8 +36,10 @@ static struct input_id input_id = {
 	.product = 0xfa50,
 };
 
+/* clang-format off */
 static int events[] = {
 	EV_REL, REL_HWHEEL,
+	EV_REL, REL_HWHEEL_HI_RES,
 	EV_KEY, KEY_ESC,
 	EV_KEY, KEY_KPMINUS,
 	EV_KEY, KEY_KPPLUS,
@@ -183,7 +185,9 @@ static int events[] = {
 	EV_MSC, MSC_SCAN,
 	-1 , -1,
 };
+/* clang-format on */
 
+/* clang-format off */
 static struct input_absinfo absinfo[] = {
 	{ ABS_VOLUME, 0, 4096, 0, 0, 0 },
 	{ ABS_MISC, 0, 255, 0, 0, 0 },
@@ -205,13 +209,13 @@ static struct input_absinfo absinfo[] = {
 	{ ABS_MT_POSITION_X, 0, 255, 0, 0, 0 },
 	{ .value = -1 },
 };
+/* clang-format on */
 
 TEST_DEVICE(LITEST_ANKER_MOUSE_KBD,
-	.features = LITEST_KEYS | LITEST_WHEEL,
-	.interface = NULL,
+	    .features = LITEST_KEYS | LITEST_WHEEL,
+	    .interface = NULL,
 
-	.name = "USB Laser Game Mouse",
-	.id = &input_id,
-	.absinfo = absinfo,
-	.events = events,
-)
+	    .name = "USB Laser Game Mouse",
+	    .id = &input_id,
+	    .absinfo = absinfo,
+	    .events = events, )

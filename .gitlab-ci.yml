@@ -34,7 +34,7 @@
 # <distribution>:<version>@activity:
 #  e.g. fedora:31@build-default
 
-.templates_sha: &template_sha e195d80f35b45cc73668be3767b923fd76c70ed5
+.templates_sha: &template_sha c6aeb16f86e32525fa630fb99c66c4f3e62fc3cb
 
 include:
   - project: 'freedesktop/ci-templates'
@@ -56,9 +56,24 @@ include:
 
 workflow:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+    # do not duplicate pipelines on merge pipelines
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
       when: never
+    # merge pipeline
+    - if: &is-merge-attempt $GITLAB_USER_LOGIN == "marge-bot" && $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        FDO_RUNNER_JOB_PRIORITY_TAG_X86_64: priority:high
+        FDO_RUNNER_JOB_PRIORITY_TAG_X86_64_KVM: priority:high-kvm
+        FDO_RUNNER_JOB_PRIORITY_TAG_AARCH64: priority:high-aarch64
+    # post-merge pipeline
+    - if: &is-post-merge $GITLAB_USER_LOGIN == "marge-bot" && $CI_PIPELINE_SOURCE == "push"
+      variables:
+        FDO_RUNNER_JOB_PRIORITY_TAG_X86_64: priority:high
+        FDO_RUNNER_JOB_PRIORITY_TAG_X86_64_KVM: priority:high-kvm
+        FDO_RUNNER_JOB_PRIORITY_TAG_AARCH64: priority:high-aarch64
+    # Pre-merge pipeline
+    - if: &is-pre-merge $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Push to a branch on a fork
     - if: $CI_COMMIT_BRANCH
 
 stages:
@@ -81,12 +96,12 @@ variables:
   # distribution                                                                #
   #                                                                             #
   # See the documentation here:                                                 #
-  # https://wayland.freedesktop.org/libinput/doc/latest/building_libinput.html  #
+  # https://wayland.freedesktop.org/libinput/doc/latest/building.html           #
   ###############################################################################
-  FEDORA_PACKAGES:  'git-core gcc gcc-c++ pkgconf-pkg-config meson check-devel libudev-devel libevdev-devel doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx_rtd_theme python3-pytest-xdist libwacom-devel cairo-devel gtk4-devel glib2-devel mtdev-devel diffutils wayland-protocols-devel black clang-analyzer jq rpmdevtools valgrind systemd-udev qemu-img qemu-system-x86-core qemu-system-aarch64-core jq python3-click python3-rich'
+  FEDORA_PACKAGES:  'git-core gcc gcc-c++ pkgconf-pkg-config meson check-devel libudev-devel libevdev-devel doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx_rtd_theme python3-pytest-xdist libwacom-devel cairo-devel gtk4-devel glib2-devel mtdev-devel diffutils wayland-protocols-devel black clang clang-tools-extra jq rpmdevtools valgrind systemd-udev qemu-img qemu-system-x86-core qemu-system-aarch64-core jq python3-click python3-rich virtme-ng'
   DEBIAN_PACKAGES:  'git gcc g++ pkg-config meson check libudev-dev libevdev-dev doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx-rtd-theme python3-pytest-xdist libwacom-dev libcairo2-dev libgtk-3-dev libglib2.0-dev libmtdev-dev curl'
   UBUNTU_PACKAGES:  'git gcc g++ pkg-config meson check libudev-dev libevdev-dev doxygen graphviz python3-sphinx python3-recommonmark python3-sphinx-rtd-theme python3-pytest-xdist libwacom-dev libcairo2-dev libgtk-3-dev libglib2.0-dev libmtdev-dev'
-  ARCH_PACKAGES:    'git gcc pkgconfig meson check libsystemd libevdev doxygen graphviz python-sphinx python-recommonmark python-sphinx_rtd_theme python-pytest-xdist libwacom gtk4 mtdev diffutils wayland-protocols'
+  ARCH_PACKAGES:    'git gcc pkgconfig meson check libsystemd libevdev python-pytest-xdist libwacom gtk4 mtdev diffutils'
   ALPINE_PACKAGES:  'git gcc build-base pkgconfig meson check-dev eudev-dev libevdev-dev libwacom-dev cairo-dev gtk4.0-dev mtdev-dev bash'
   FREEBSD_PACKAGES: 'git pkgconf meson libepoll-shim libudev-devd libevdev libwacom gtk3 libmtdev bash wayland'
   ############################ end of package lists #############################
@@ -95,12 +110,12 @@ variables:
   # changing these will force rebuilding the associated image
   # Note: these tags have no meaning and are not tied to a particular
   # libinput version
-  FEDORA_TAG:  '2024-05-13.0'
-  DEBIAN_TAG:  '2024-05-13.0'
-  UBUNTU_TAG:  '2024-05-13.0'
-  ARCH_TAG:    '2024-05-13.0'
-  ALPINE_TAG:  '2024-05-13.0'
-  FREEBSD_TAG: '2024-05-13.0'
+  FEDORA_TAG:  '2025-05-19.0'
+  DEBIAN_TAG:  '2025-05-19.0'
+  UBUNTU_TAG:  '2025-05-19.0'
+  ARCH_TAG:    '2025-05-19.0'
+  ALPINE_TAG:  '2025-05-19.0'
+  FREEBSD_TAG: '2025-05-19.0'
 
   FDO_UPSTREAM_REPO: libinput/libinput
 
@@ -113,9 +128,24 @@ variables:
   UDEV_NOT_AVAILABLE: 1
   GIT_DEPTH: 1
 
+  # Default priority for non-merge pipelines
+  FDO_RUNNER_JOB_PRIORITY_TAG_X86_64: ""  # Empty tags are ignored by gitlab
+  FDO_RUNNER_JOB_PRIORITY_TAG_X86_64_KVM: kvm
+  FDO_RUNNER_JOB_PRIORITY_TAG_AARCH64: aarch64
+
 .policy:
   retry:
     max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  # cancel run when a newer version is pushed to the branch
+  interruptible: true
+  dependencies: []
+
+.policy-retry-on-failure:
+  retry:
+    max: 1
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
@@ -134,6 +164,10 @@ variables:
     reports:
       junit: $MESON_BUILDDIR/*junit*.xml
 
+.fdo-runner-tags:
+  tags:
+    - $FDO_RUNNER_JOB_PRIORITY_TAG_X86_64
+
 
 #################################################################
 #                                                               #
@@ -142,6 +176,8 @@ variables:
 #################################################################
 
 fail-if-fork-is-not-public:
+  extends:
+    - .fdo-runner-tags
   stage: sanity check
   script:
     - |
@@ -162,6 +198,7 @@ fail-if-fork-is-not-public:
 check-ci-script:
   extends:
     - .fdo.ci-fairy
+    - .fdo-runner-tags
   stage: sanity check
   script:
     - ci-fairy generate-template --verify && exit 0 || true
@@ -178,6 +215,7 @@ check-ci-script:
 check-commit:
   extends:
     - .fdo.ci-fairy
+    - .fdo-runner-tags
   stage: sanity check
   script:
     - ci-fairy -vv check-commits --junit-xml=results.xml && exit 0 || true
@@ -202,6 +240,7 @@ check-commit:
 check-whitespace:
   extends:
     - .fdo.ci-fairy
+    - .fdo-runner-tags
   stage: sanity check
   script:
     - .gitlab-ci/whitespace-check.py $(git ls-files)
@@ -213,12 +252,13 @@ check-whitespace:
 pre-commit-hooks:
   extends:
     - .fdo.ci-fairy
+    - .fdo-runner-tags
   stage: sanity check
   script:
     - python3 -m venv venv
     - source venv/bin/activate
     - pip3 install pre-commit
-    - pre-commit run --all-files || true
+    - pre-commit run --all-files
     - git diff --exit-code || (echo "ERROR - Code style errors found, please fix" && false)
 
 #################################################################
@@ -227,21 +267,11 @@ pre-commit-hooks:
 #                                                               #
 #################################################################
 
-fedora:40@container-prep:
-  extends:
-    - .fdo.container-build@fedora
-    - .policy
-  stage: prep
-  variables:
-    GIT_STRATEGY: none
-    FDO_DISTRIBUTION_VERSION: '40'
-    FDO_DISTRIBUTION_PACKAGES: $FEDORA_PACKAGES
-    FDO_DISTRIBUTION_TAG: $FEDORA_TAG
-
 fedora:41@container-prep:
   extends:
     - .fdo.container-build@fedora
     - .policy
+    - .fdo-runner-tags
   stage: prep
   variables:
     GIT_STRATEGY: none
@@ -249,10 +279,23 @@ fedora:41@container-prep:
     FDO_DISTRIBUTION_PACKAGES: $FEDORA_PACKAGES
     FDO_DISTRIBUTION_TAG: $FEDORA_TAG
 
+fedora:42@container-prep:
+  extends:
+    - .fdo.container-build@fedora
+    - .policy
+    - .fdo-runner-tags
+  stage: prep
+  variables:
+    GIT_STRATEGY: none
+    FDO_DISTRIBUTION_VERSION: '42'
+    FDO_DISTRIBUTION_PACKAGES: $FEDORA_PACKAGES
+    FDO_DISTRIBUTION_TAG: $FEDORA_TAG
+
 debian:stable@container-prep:
   extends:
     - .fdo.container-build@debian
     - .policy
+    - .fdo-runner-tags
   stage: prep
   variables:
     GIT_STRATEGY: none
@@ -260,14 +303,15 @@ debian:stable@container-prep:
     FDO_DISTRIBUTION_PACKAGES: $DEBIAN_PACKAGES
     FDO_DISTRIBUTION_TAG: $DEBIAN_TAG
 
-ubuntu:22.04@container-prep:
+ubuntu:25.04@container-prep:
   extends:
     - .fdo.container-build@ubuntu
     - .policy
+    - .fdo-runner-tags
   stage: prep
   variables:
     GIT_STRATEGY: none
-    FDO_DISTRIBUTION_VERSION: '22.04'
+    FDO_DISTRIBUTION_VERSION: '25.04'
     FDO_DISTRIBUTION_PACKAGES: $UBUNTU_PACKAGES
     FDO_DISTRIBUTION_TAG: $UBUNTU_TAG
 
@@ -275,6 +319,7 @@ arch:rolling@container-prep:
   extends:
     - .fdo.container-build@arch
     - .policy
+    - .fdo-runner-tags
   stage: prep
   variables:
     GIT_STRATEGY: none
@@ -286,6 +331,7 @@ alpine:latest@container-prep:
   extends:
     - .fdo.container-build@alpine
     - .policy
+    - .fdo-runner-tags
   stage: prep
   variables:
     GIT_STRATEGY: none
@@ -293,16 +339,17 @@ alpine:latest@container-prep:
     FDO_DISTRIBUTION_PACKAGES: $ALPINE_PACKAGES
     FDO_DISTRIBUTION_TAG: $ALPINE_TAG
 
-freebsd:13.2@container-prep:
+freebsd:14.2@container-prep:
   extends:
     - .fdo.qemu-build@freebsd
     - .policy
+    - .fdo-runner-tags
   tags:
-    - kvm
+    - $FDO_RUNNER_JOB_PRIORITY_TAG_X86_64_KVM
   stage: prep
   variables:
     GIT_STRATEGY: none
-    FDO_DISTRIBUTION_VERSION: '13.2'
+    FDO_DISTRIBUTION_VERSION: '14.2'
     FDO_DISTRIBUTION_PACKAGES: $FREEBSD_PACKAGES
     FDO_DISTRIBUTION_TAG: $FREEBSD_TAG
 
@@ -324,6 +371,7 @@ freebsd:13.2@container-prep:
   extends:
     - .policy
     - .fdo.ci-fairy
+    - .fdo-runner-tags
   stage: container_clean
   script:
     # Go to your Profile, Settings, Access Tokens
@@ -338,16 +386,6 @@ freebsd:13.2@container-prep:
   only:
     - schedules
 
-fedora:40@container-clean:
-  extends:
-    - .policy
-    - .container-clean
-  variables:
-    GIT_STRATEGY: none
-    CURRENT_CONTAINER_IMAGE: $CI_REGISTRY_IMAGE/fedora/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG
-    FDO_DISTRIBUTION_VERSION: '40'
-    FDO_DISTRIBUTION_TAG: $FEDORA_TAG
-
 fedora:41@container-clean:
   extends:
     - .policy
@@ -356,6 +394,16 @@ fedora:41@container-clean:
     GIT_STRATEGY: none
     CURRENT_CONTAINER_IMAGE: $CI_REGISTRY_IMAGE/fedora/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG
     FDO_DISTRIBUTION_VERSION: '41'
+    FDO_DISTRIBUTION_TAG: $FEDORA_TAG
+
+fedora:42@container-clean:
+  extends:
+    - .policy
+    - .container-clean
+  variables:
+    GIT_STRATEGY: none
+    CURRENT_CONTAINER_IMAGE: $CI_REGISTRY_IMAGE/fedora/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG
+    FDO_DISTRIBUTION_VERSION: '42'
     FDO_DISTRIBUTION_TAG: $FEDORA_TAG
 
 debian:stable@container-clean:
@@ -368,14 +416,14 @@ debian:stable@container-clean:
     FDO_DISTRIBUTION_VERSION: 'stable'
     FDO_DISTRIBUTION_TAG: $DEBIAN_TAG
 
-ubuntu:22.04@container-clean:
+ubuntu:25.04@container-clean:
   extends:
     - .policy
     - .container-clean
   variables:
     GIT_STRATEGY: none
     CURRENT_CONTAINER_IMAGE: $CI_REGISTRY_IMAGE/ubuntu/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG
-    FDO_DISTRIBUTION_VERSION: '22.04'
+    FDO_DISTRIBUTION_VERSION: '25.04'
     FDO_DISTRIBUTION_TAG: $UBUNTU_TAG
 
 arch:rolling@container-clean:
@@ -398,14 +446,14 @@ alpine:latest@container-clean:
     FDO_DISTRIBUTION_VERSION: 'latest'
     FDO_DISTRIBUTION_TAG: $ALPINE_TAG
 
-freebsd:13.2@container-clean:
+freebsd:14.2@container-clean:
   extends:
     - .policy
     - .container-clean
   variables:
     GIT_STRATEGY: none
     CURRENT_CONTAINER_IMAGE: $CI_REGISTRY_IMAGE/freebsd/$FDO_DISTRIBUTION_VERSION:$FDO_DISTRIBUTION_TAG
-    FDO_DISTRIBUTION_VERSION: '13.2'
+    FDO_DISTRIBUTION_VERSION: '14.2'
     FDO_DISTRIBUTION_TAG: $FREEBSD_TAG
 
 
@@ -419,33 +467,40 @@ freebsd:13.2@container-clean:
   extends:
     - .policy
     - .default_artifacts
+    - .fdo-runner-tags
   stage: build
   script:
     - .gitlab-ci/meson-build.sh
 
 
 # Run meson and meson test in the container image through qemu
-.build-in-b2c@template:
+.build-in-vng@template:
   extends:
     - .policy
     - .default_artifacts
   tags:
-    - kvm
+    - $FDO_RUNNER_JOB_PRIORITY_TAG_X86_64_KVM
   variables:
     MESON_BUILDDIR: build_dir
-    B2C_KERNEL: https://gitlab.freedesktop.org/api/v4/projects/libevdev%2Fhid-tools/packages/generic/kernel-x86_64/v6.5/bzImage
-    B2C_IMAGE: $FDO_DISTRIBUTION_IMAGE
-    B2C_COMMAND: .gitlab-ci/start-in-systemd.sh
+    VNG_KERNEL: https://gitlab.freedesktop.org/api/v4/projects/libevdev%2Fhid-tools/packages/generic/kernel-x86_64/v6.14/bzImage
   script:
     # first build in the host container
     - .gitlab-ci/meson-build.sh --skip-test
 
-    # pull b2c
-    - curl -L -o /app/boot2container https://gitlab.freedesktop.org/gfx-ci/boot2container/-/raw/24beb454c62fe59143d7ceb4f5a7d25a3c029559/vm2c.py
-    - chmod +x /app/boot2container
+    - mkdir -p $MESON_BUILDDIR
+    - curl -LO $VNG_KERNEL
+
+    - export -p > .vngenv
 
     # runs the test suite only
-    - /app/boot2container
+    - |
+      vng --run ./bzImage \
+          --user root \
+          --overlay-rwdir=$HOME \
+          --append HOME=$HOME \
+          --overlay-rwdir=$(pwd) \
+          --rwdir=$MESON_BUILDDIR \
+          --exec "source $PWD/.vngenv; rm $PWD/.vngenv; .gitlab-ci/meson-build.sh --skip-setup --skip-build --run-test"
 
 #
 # Fedora
@@ -464,7 +519,7 @@ freebsd:13.2@container-clean:
   extends:
     - .policy
   tags:
-    - kvm
+    - $FDO_RUNNER_JOB_PRIORITY_TAG_X86_64_KVM
   variables:
     MESON_BUILDDIR: build_dir
   script:
@@ -510,7 +565,7 @@ freebsd:13.2@container-clean:
 # Set one or the other, not both.
 .test-suite-vm:
   extends:
-    - .build-in-b2c@template
+    - .build-in-vng@template
   stage: test-suite
   variables:
     # remove the global --no-suite=hardware
@@ -522,20 +577,20 @@ freebsd:13.2@container-clean:
     - export MESON_TEST_ARGS="$MESON_TEST_ARGS $SUITES"
 
 
-.fedora:41@test-suite-vm:
+.fedora:42@test-suite-vm:
   extends:
     - .fdo.distribution-image@fedora
     - .test-suite-vm
   variables:
-    FDO_DISTRIBUTION_VERSION: 41
+    FDO_DISTRIBUTION_VERSION: 42
     FDO_DISTRIBUTION_TAG: $FEDORA_TAG
   needs:
-    - "fedora:41@container-prep"
+    - "fedora:42@container-prep"
 
 
 vm-touchpad:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'touchpad'
 
@@ -548,7 +603,7 @@ vm-touchpad-no-libwacom:
 
 vm-touchpad_palm:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'touchpad_palm'
 
@@ -561,7 +616,7 @@ vm-touchpad_palm-no-libwacom:
 
 vm-touchpad_dwt:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'touchpad_dwt'
 
@@ -574,7 +629,7 @@ vm-touchpad_dwt-no-libwacom:
 
 vm-tap:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'touchpad_tap'
 
@@ -587,7 +642,7 @@ vm-tap-no-libwacom:
 
 vm-tap-drag:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'touchpad_tap_drag'
 
@@ -600,7 +655,7 @@ vm-tap-drag-no-libwacom:
 
 vm-tap-palm:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'touchpad_tap_palm'
 
@@ -613,7 +668,7 @@ vm-tap-palm-no-libwacom:
 
 vm-touchpad-buttons:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'touchpad_buttons'
 
@@ -626,7 +681,7 @@ vm-touchpad-buttons-no-libwacom:
 
 vm-tablet:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'tablet'
 
@@ -639,7 +694,7 @@ vm-tablet-no-libwacom:
 
 vm-tablet_left_handed:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'tablet_left_handed'
 
@@ -650,9 +705,35 @@ vm-tablet_left_handed-no-libwacom:
   variables:
     MESON_ARGS: '-Dlibwacom=false'
 
+vm-tablet_proximity_tip:
+  extends:
+    - .fedora:42@test-suite-vm
+  variables:
+    SUITE_NAMES: 'tablet_proximity tablet_tip'
+
+vm-tablet_proximity_tip-no-libwacom:
+  extends:
+    - vm-tablet_proximity_tip
+  stage: test-suite-no-libwacom
+  variables:
+    MESON_ARGS: '-Dlibwacom=false'
+
+vm-tablet_eraser:
+  extends:
+    - .fedora:42@test-suite-vm
+  variables:
+    SUITE_NAMES: 'tablet_eraser'
+
+vm-tablet_eraser-no-libwacom:
+  extends:
+    - vm-tablet_eraser
+  stage: test-suite-no-libwacom
+  variables:
+    MESON_ARGS: '-Dlibwacom=false'
+
 vm-gestures:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'gestures'
 
@@ -665,7 +746,7 @@ vm-gestures-no-libwacom:
 
 vm-backends:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'path udev'
 
@@ -678,7 +759,7 @@ vm-backends-no-libwacom:
 
 vm-misc:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'log misc quirks device'
 
@@ -691,7 +772,7 @@ vm-misc-no-libwacom:
 
 vm-other devices:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'keyboard pad switch trackball trackpoint totem touch'
 
@@ -704,7 +785,7 @@ vm-other devices-no-libwacom:
 
 vm-pointer:
   extends:
-    - .fedora:41@test-suite-vm
+    - .fedora:42@test-suite-vm
   variables:
     SUITE_NAMES: 'pointer'
 
@@ -720,6 +801,7 @@ vm-valgrind-touchpad:
   stage: valgrind
   extends:
     - vm-touchpad
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -732,6 +814,7 @@ vm-valgrind-touchpad_palm:
   stage: valgrind
   extends:
     - vm-touchpad_palm
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -744,6 +827,7 @@ vm-valgrind-touchpad_dwt:
   stage: valgrind
   extends:
     - vm-touchpad_dwt
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -756,6 +840,7 @@ vm-valgrind-tap:
   stage: valgrind
   extends:
     - vm-tap
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -768,6 +853,7 @@ vm-valgrind-tap-drag:
   stage: valgrind
   extends:
     - vm-tap-drag
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -780,6 +866,7 @@ vm-valgrind-tap-palm:
   stage: valgrind
   extends:
     - vm-tap-palm
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -792,6 +879,7 @@ vm-valgrind-touchpad-buttons:
   stage: valgrind
   extends:
     - vm-touchpad-buttons
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -804,6 +892,7 @@ vm-valgrind-tablet:
   stage: valgrind
   extends:
     - vm-tablet
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -816,6 +905,33 @@ vm-valgrind-tablet_left_handed:
   stage: valgrind
   extends:
     - vm-tablet_left_handed
+    - .policy-retry-on-failure
+  variables:
+    MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 0
+  retry:
+    max: 2
+  rules:
+    - if: $GITLAB_USER_LOGIN != "marge-bot"
+
+vm-valgrind-tablet_proximity_tip:
+  stage: valgrind
+  extends:
+    - vm-tablet_proximity_tip
+    - .policy-retry-on-failure
+  variables:
+    MESON_TEST_ARGS: '--setup=valgrind'
+    LITEST_JOBS: 0
+  retry:
+    max: 2
+  rules:
+    - if: $GITLAB_USER_LOGIN != "marge-bot"
+
+vm-valgrind-tablet_eraser:
+  stage: valgrind
+  extends:
+    - vm-tablet_eraser
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -828,6 +944,7 @@ vm-valgrind-gestures:
   stage: valgrind
   extends:
     - vm-gestures
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -840,6 +957,7 @@ vm-valgrind-backends:
   stage: valgrind
   extends:
     - vm-backends
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -852,6 +970,7 @@ vm-valgrind-misc:
   stage: valgrind
   extends:
     - vm-misc
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -864,6 +983,7 @@ vm-valgrind-other devices:
   stage: valgrind
   extends:
     - vm-other devices
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -876,6 +996,7 @@ vm-valgrind-pointer:
   stage: valgrind
   extends:
     - vm-pointer
+    - .policy-retry-on-failure
   variables:
     MESON_TEST_ARGS: '--setup=valgrind'
     LITEST_JOBS: 0
@@ -890,12 +1011,12 @@ vm-valgrind-pointer:
     - .fdo.distribution-image@fedora
     - .build@template
   variables:
-    FDO_DISTRIBUTION_VERSION: '41'
+    FDO_DISTRIBUTION_VERSION: '42'
     FDO_DISTRIBUTION_TAG: $FEDORA_TAG
   needs:
-    - "fedora:41@container-prep"
+    - "fedora:42@container-prep"
 
-default-build-release@fedora:41:
+default-build-release@fedora:42:
   stage: distro
   extends:
     - .fedora-build@template
@@ -903,30 +1024,28 @@ default-build-release@fedora:41:
     MESON_ARGS: "-Dbuildtype=release"
     CFLAGS: "-Werror"
 
-scan-build@fedora:41:
+clang-tidy@fedora:42:
   extends:
     - .fedora-build@template
   variables:
     NINJA_ARGS: ''
     MESON_TEST_ARGS: ''
+    CC: 'clang'
   script:
     - .gitlab-ci/meson-build.sh
-    - export SCANBUILD="$PWD/.gitlab-ci/scanbuild-wrapper.sh"
-    - ninja -C "$MESON_BUILDDIR" scan-build
-  after_script:
-    - .gitlab-ci/scanbuild-plist-to-junit.py "$MESON_BUILDDIR"/meson-logs/scanbuild/ > "$MESON_BUILDDIR"/junit-scan-build.xml
+    - ninja -C "$MESON_BUILDDIR" clang-tidy
 
 # Below jobs are build option combinations. We only
 # run them on one image, they shouldn't fail on one distro
 # when they succeed on another.
 
-build-no-libwacom@fedora:41:
+build-no-libwacom@fedora:42:
   extends:
     - .fedora-build@template
   variables:
     MESON_ARGS: "-Dlibwacom=false"
 
-build-no-libwacom-nodeps@fedora:41:
+build-no-libwacom-nodeps@fedora:42:
   extends:
     - .fedora-build@template
   variables:
@@ -934,13 +1053,27 @@ build-no-libwacom-nodeps@fedora:41:
   before_script:
     - dnf remove -y libwacom libwacom-devel
 
-build-docs@fedora:41:
+build-no-mtdev@fedora:42:
+  extends:
+    - .fedora-build@template
+  variables:
+    MESON_ARGS: "-Dmtdev=false"
+
+build-no-mtdev-nodeps@fedora:42:
+  extends:
+    - .fedora-build@template
+  variables:
+    MESON_ARGS: "-Dmtdev=false"
+  before_script:
+    - dnf remove -y mtdev mtdev-devel
+
+build-docs@fedora:42:
   extends:
     - .fedora-build@template
   variables:
     MESON_ARGS: "-Ddocumentation=true"
 
-build-no-docs-nodeps@fedora:41:
+build-no-docs-nodeps@fedora:42:
   extends:
     - .fedora-build@template
   variables:
@@ -948,13 +1081,13 @@ build-no-docs-nodeps@fedora:41:
   before_script:
     - dnf remove -y doxygen graphviz
 
-build-no-debuggui@fedora:41:
+build-no-debuggui@fedora:42:
   extends:
     - .fedora-build@template
   variables:
     MESON_ARGS: "-Ddebug-gui=false"
 
-build-no-debuggui-nodeps@fedora:41:
+build-no-debuggui-nodeps@fedora:42:
   extends:
     - .fedora-build@template
   variables:
@@ -962,13 +1095,13 @@ build-no-debuggui-nodeps@fedora:41:
   before_script:
     - dnf remove -y gtk3-devel gtk4-devel
 
-build-no-tests@fedora:41:
+build-no-tests@fedora:42:
   extends:
     - .fedora-build@template
   variables:
     MESON_ARGS: "-Dtests=false"
 
-build-no-tests-nodeps@fedora:41:
+build-no-tests-nodeps@fedora:42:
   extends:
     - .fedora-build@template
   variables:
@@ -976,7 +1109,7 @@ build-no-tests-nodeps@fedora:41:
   before_script:
     - dnf remove -y check-devel
 
-valgrind@fedora:41:
+valgrind@fedora:42:
   extends:
     - .fedora-build@template
   variables:
@@ -984,7 +1117,7 @@ valgrind@fedora:41:
 
 # Python checks, only run on Fedora
 
-usr-bin-env-python@fedora:41:
+usr-bin-env-python@fedora:42:
   extends:
     - .fedora-build@template
   script:
@@ -993,13 +1126,6 @@ usr-bin-env-python@fedora:41:
         echo "Use '/usr/bin/env python3' in the above files";
         /bin/false
       fi
-
-python-format@fedora:41:
-  extends:
-    - .fedora-build@template
-  script:
-    - black $(git grep -l '^#!/usr/bin/env python3')
-    - git diff --exit-code || (echo "Please run Black against all Python files" && false)
 
 # A job to check we're actually running all test suites in the CI
 check-test-suites:
@@ -1019,6 +1145,9 @@ check-test-suites:
         libinput-test-suite-touchpad_buttons
         libinput-test-suite-tablet
         libinput-test-suite-tablet_left_handed
+        libinput-test-suite-tablet_proximity
+        libinput-test-suite-tablet_tip
+        libinput-test-suite-tablet_eraser
         libinput-test-suite-gestures
         libinput-test-suite-path
         libinput-test-suite-udev
@@ -1059,6 +1188,7 @@ coverity:
   extends:
     - .fdo.distribution-image@debian
     - .policy
+    - .fdo-runner-tags
   stage: build
   variables:
     FDO_DISTRIBUTION_VERSION: 'stable'
@@ -1097,18 +1227,6 @@ coverity:
 #                                                               #
 #################################################################
 
-fedora:40@default-build:
-  stage: distro
-  extends:
-    - .build@template
-    - .fdo.distribution-image@fedora
-  variables:
-    FDO_DISTRIBUTION_VERSION: '40'
-    FDO_DISTRIBUTION_TAG: $FEDORA_TAG
-  needs:
-    - "fedora:40@container-prep"
-
-
 fedora:41@default-build:
   stage: distro
   extends:
@@ -1119,6 +1237,18 @@ fedora:41@default-build:
     FDO_DISTRIBUTION_TAG: $FEDORA_TAG
   needs:
     - "fedora:41@container-prep"
+
+
+fedora:42@default-build:
+  stage: distro
+  extends:
+    - .build@template
+    - .fdo.distribution-image@fedora
+  variables:
+    FDO_DISTRIBUTION_VERSION: '42'
+    FDO_DISTRIBUTION_TAG: $FEDORA_TAG
+  needs:
+    - "fedora:42@container-prep"
 
 
 debian:stable@default-build:
@@ -1133,16 +1263,16 @@ debian:stable@default-build:
     - "debian:stable@container-prep"
 
 
-ubuntu:22.04@default-build:
+ubuntu:25.04@default-build:
   stage: distro
   extends:
     - .build@template
     - .fdo.distribution-image@ubuntu
   variables:
-    FDO_DISTRIBUTION_VERSION: '22.04'
+    FDO_DISTRIBUTION_VERSION: '25.04'
     FDO_DISTRIBUTION_TAG: $UBUNTU_TAG
   needs:
-    - "ubuntu:22.04@container-prep"
+    - "ubuntu:25.04@container-prep"
 
 
 arch:rolling@default-build:
@@ -1153,6 +1283,7 @@ arch:rolling@default-build:
   variables:
     FDO_DISTRIBUTION_VERSION: 'rolling'
     FDO_DISTRIBUTION_TAG: $ARCH_TAG
+    MESON_ARGS: '-Ddocumentation=false'
   needs:
     - "arch:rolling@container-prep"
 
@@ -1171,18 +1302,18 @@ alpine:latest@default-build:
     - "alpine:latest@container-prep"
 
 
-freebsd:13.2@default-build:
+freebsd:14.2@default-build:
   stage: distro
   extends:
     - .build-in-qemu@template
     - .fdo.distribution-image@freebsd
   variables:
-    FDO_DISTRIBUTION_VERSION: '13.2'
+    FDO_DISTRIBUTION_VERSION: '14.2'
     FDO_DISTRIBUTION_TAG: $FREEBSD_TAG
     MESON_ARGS: '-Dtests=false -Ddocumentation=false' # doxygen drags down too many deps
     MESON_TEST_ARGS: '' # test suite doesn't work on BSD yet
   needs:
-    - "freebsd:13.2@container-prep"
+    - "freebsd:14.2@container-prep"
 
 
 #################################################################
@@ -1199,6 +1330,7 @@ check-merge-request:
   extends:
     - .fdo.ci-fairy
     - .policy
+    - .fdo-runner-tags
   stage: deploy
   script:
     - ci-fairy check-merge-request --require-allow-collaboration --junit-xml=results.xml
@@ -1215,12 +1347,13 @@ build rpm:
   extends:
     - .fdo.distribution-image@fedora
     - .policy
+    - .fdo-runner-tags
   stage: deploy
   variables:
-    FDO_DISTRIBUTION_VERSION: '41'
+    FDO_DISTRIBUTION_VERSION: '42'
     FDO_DISTRIBUTION_TAG: $FEDORA_TAG
   needs:
-    - "fedora:41@container-prep"
+    - "fedora:42@container-prep"
   script:
     - meson "$MESON_BUILDDIR"
     - VERSION=$(meson introspect "$MESON_BUILDDIR" --projectinfo | jq -r .version)
