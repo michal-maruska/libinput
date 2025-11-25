@@ -1,4 +1,4 @@
-libinput (1.29.1-1) UNRELEASED; urgency=medium
+libinput (1.30.0-1) UNRELEASED; urgency=medium
 
   * New upstream release.
   * watch: Update to version 5.
