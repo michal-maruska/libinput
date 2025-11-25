@@ -1,11 +1,11 @@
-libinput (1.30.0-1) UNRELEASED; urgency=medium
+libinput (1.30.0-1) unstable; urgency=medium
 
   * New upstream release.
   * watch: Update to version 5.
   * patches: Refreshed.
   * symbols: Updated.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 18 Sep 2025 10:44:19 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 25 Nov 2025 17:03:20 +0200
 
 libinput (1.28.1-1) unstable; urgency=medium
 
