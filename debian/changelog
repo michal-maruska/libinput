@@ -3,6 +3,7 @@ libinput (1.30.0-1) UNRELEASED; urgency=medium
   * New upstream release.
   * watch: Update to version 5.
   * patches: Refreshed.
+  * symbols: Updated.
 
  -- Timo Aaltonen <tjaalton@debian.org>  Thu, 18 Sep 2025 10:44:19 +0300
 
