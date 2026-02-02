@@ -1272,10 +1272,13 @@ static void
 eraser_button_toggle(struct libinput_tablet_tool *tool)
 {
 	struct libinput_device *libinput_device = tool->last_device;
-	struct evdev_device *device = evdev_device(libinput_device);
-	struct tablet_dispatch *tablet = tablet_dispatch(device->dispatch);
 
-	tablet_tool_apply_eraser_button(tablet, tool);
+	if (libinput_device) {
+		struct evdev_device *device = evdev_device(libinput_device);
+		struct tablet_dispatch *tablet = tablet_dispatch(device->dispatch);
+
+		tablet_tool_apply_eraser_button(tablet, tool);
+	}
 }
 
 static enum libinput_config_status
@@ -1296,7 +1299,7 @@ eraser_button_set_mode(struct libinput_tablet_tool *tool,
 static enum libinput_config_eraser_button_mode
 eraser_button_get_mode(struct libinput_tablet_tool *tool)
 {
-	return tool->eraser_button.mode;
+	return tool->eraser_button.want_mode;
 }
 
 static enum libinput_config_eraser_button_mode
@@ -1330,7 +1333,7 @@ eraser_button_set_button(struct libinput_tablet_tool *tool, uint32_t button)
 static unsigned int
 eraser_button_get_button(struct libinput_tablet_tool *tool)
 {
-	return tool->eraser_button.button;
+	return tool->eraser_button.want_button;
 }
 
 static unsigned int
@@ -2448,6 +2451,8 @@ tablet_destroy(struct evdev_dispatch *dispatch)
 	struct libinput *li = tablet_libinput_context(tablet);
 
 	list_for_each_safe(tool, &tablet->tool_list, link) {
+		list_remove(&tool->link);
+		list_init(&tool->link); /* unref may list_remove() too */
 		libinput_tablet_tool_unref(tool);
 	}
 
