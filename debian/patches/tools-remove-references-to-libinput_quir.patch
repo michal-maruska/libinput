@@ -1,0 +1,69 @@
+From: Vagrant Cascadian <vagrant@reproducible-builds.org>
+Date: Fri, 1 Dec 2023 14:17:20 -0800
+X-Dgit-Generated: 1.23.0-2.1 8d72c3fd82d3eb08e28adc552aaeb93df83f9d3a
+Subject: tools: Remove references to LIBINPUT_QUIRKS_SRCDIR. (Closes: #995809)
+
+This embeds the build path which is not generally available at runtime and
+makes it more difficult to reproduce the build.
+
+https://reproducible-builds.org/docs/build-path/
+
+---
+
+--- a/tools/libinput-quirks.c
++++ b/tools/libinput-quirks.c
+@@ -163,12 +163,8 @@ main(int argc, char **argv)
+ 
+ 	/* Overriding the data dir means no custom override file */
+ 	if (!data_path) {
+-		if (builddir_lookup(NULL)) {
+-			data_path = LIBINPUT_QUIRKS_SRCDIR;
+-		} else {
+-			data_path = LIBINPUT_QUIRKS_DIR;
+-			override_file = LIBINPUT_QUIRKS_OVERRIDE_FILE;
+-		}
++		data_path = LIBINPUT_QUIRKS_DIR;
++		override_file = LIBINPUT_QUIRKS_OVERRIDE_FILE;
+ 	}
+ 
+ 	_unref_(quirks_context) *quirks =
+--- a/tools/libinput-record.c
++++ b/tools/libinput-record.c
+@@ -1781,12 +1781,6 @@ print_device_quirks(struct record_device
+ 	if (stat(dev->devnode, &st) < 0)
+ 		return;
+ 
+-	if (builddir_lookup(NULL)) {
+-		setenv("LIBINPUT_QUIRKS_DIR", LIBINPUT_QUIRKS_SRCDIR, 0);
+-		data_path = LIBINPUT_QUIRKS_SRCDIR;
+-		override_file = NULL;
+-	}
+-
+ 	_unref_(quirks_context) *quirks =
+ 		quirks_init_subsystem(data_path,
+ 				      override_file,
+--- a/tools/shared.c
++++ b/tools/shared.c
+@@ -613,13 +613,6 @@ tools_open_device(const char **paths,
+ 	return steal(&li);
+ }
+ 
+-static void
+-tools_setenv_quirks_dir(void)
+-{
+-	if (builddir_lookup(NULL))
+-		setenv("LIBINPUT_QUIRKS_DIR", LIBINPUT_QUIRKS_SRCDIR, 0);
+-}
+-
+ struct libinput *
+ tools_open_backend(enum tools_backend which,
+ 		   const char **seat_or_device,
+@@ -630,8 +623,6 @@ tools_open_backend(enum tools_backend wh
+ {
+ 	struct libinput *li;
+ 
+-	tools_setenv_quirks_dir();
+-
+ 	switch (which) {
+ 	case BACKEND_UDEV:
+ 		li = tools_open_udev(seat_or_device[0],
