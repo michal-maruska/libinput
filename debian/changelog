@@ -3,6 +3,9 @@ libinput (1.31.1-1) UNRELEASED; urgency=medium
   * New upstream release. (Closes: #1132550)
     - CVE-2026-35093
     - CVE-2026-35094
+  * Add quirks support for Goodix touchpad 27C6:0F96 and 27C6:0F90 (LP: #2146518)
+    d/p/0001-Add-Goodix-haptic-touchpad-27C6-0F90-support.patch
+    d/p/0002-quirks-add-support-for-Goodix-touchpad-27C6-0F96.patch
 
  -- Timo Aaltonen <tjaalton@debian.org>  Thu, 02 Apr 2026 22:19:41 +0300
 
