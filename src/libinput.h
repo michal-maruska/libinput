@@ -3656,6 +3656,32 @@ libinput_udev_create_context(const struct libinput_interface *interface,
 			     struct udev *udev);
 
 /**
+ * Load a plugin, and invoke its init function.
+ */
+int
+libinput_setup_fork(struct libinput *libinput);
+
+struct libinput_fork_services
+{
+	struct libinput *libinput;
+	void (*post_event)(struct libinput_fork_services*, struct libinput_device *device, struct libinput_event_keyboard *key_event);
+	void (*vlog)(struct libinput_fork_services*, enum libinput_log_priority priority, const char *format, va_list args);
+	void (*log)(struct libinput_fork_services*, enum libinput_log_priority priority, const char *format, ...);
+	int32_t (*rewrite) (struct libinput_event_keyboard *event, uint32_t code);
+};
+
+struct libinput_keyboard_plugin
+{
+	void *user_data;
+	void (*accept_event)(void *user_data, const struct libinput_device *device, const struct libinput_event_keyboard *key_event);
+	void (*accept_time)(void *user_data, struct libinput_device *device, uint64_t time);
+	// timer;
+};
+
+void
+libinput_register_fork(struct libinput_keyboard_plugin* p);
+
+/**
  * @ingroup base
  *
  * Assign a seat to this libinput context. New devices or the removal of
