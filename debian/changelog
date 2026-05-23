@@ -1,3 +1,22 @@
+libinput (1.31.2-1-maruska) unstable; urgency=medium
+
+  * Create a separate libinput_setup_fork to load "fork" plugin
+  * API for the plugin: "services" and libinput_keyboard_plugin
+  * Add libinput_register_fork() to register ONE plugin -- todo: version
+  * if registered  ... deviate to keyboard_pipeline->accept_event()
+  * Add to "services": (v)log methods
+  * implement service.post_event = libinput_fork_post_event
+  * pass the "services" to the plugins's "setup" call
+  * services: add rewrite
+  * The plugin can have its user_data, passed in all API
+  * comments
+  * comments
+  * add to debian symbols
+  * d/source native
+  * ci: release = make deb in my organization
+
+ -- Michal Maruska <mmaruska@gmail.com>  Sat, 23 May 2026 03:17:13 +0200
+
 libinput (1.31.2-1) unstable; urgency=medium
 
   * New upstream release.
