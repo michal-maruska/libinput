@@ -33,6 +33,7 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+#include <dlfcn.h>
 
 #include "util-input-event.h"
 #include "util-libinput.h"
@@ -1859,6 +1860,7 @@ libinput_remove_source(struct libinput *libinput, struct libinput_source *source
 	list_insert(&libinput->source_destroy_list, &source->link);
 }
 
+// mmc: not public api?
 int
 libinput_init(struct libinput *libinput,
 	      const struct libinput_interface *interface,
@@ -1868,6 +1870,7 @@ libinput_init(struct libinput *libinput,
 	assert(interface->open_restricted != NULL);
 	assert(interface->close_restricted != NULL);
 
+	// mmc: this seems global indeed!
 	libinput->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 	if (libinput->epoll_fd < 0)
 		return -1;
@@ -1893,6 +1896,137 @@ libinput_init(struct libinput *libinput,
 		return -1;
 	}
 
+	return 0;
+}
+
+static void*
+mmc_weston_load_module(struct libinput *libinput,
+		       const char *name, const char *entrypoint,
+		       const char *module_dir)
+{
+	char path[PATH_MAX];
+	void *module, *init;
+	size_t len;
+
+	if (name == NULL)
+		return NULL;
+
+	if (name[0] != '/') {
+		len = snprintf(path, sizeof path, "%s/%s",
+			       module_dir, name);
+	} else {
+		len = snprintf(path, sizeof path, "%s", name);
+	}
+
+	/* snprintf returns the length of the string it would've written,
+	 * _excluding_ the NUL byte. So even being equal to the size of
+	 * our buffer is an error here. */
+	if (len >= sizeof path)
+		return NULL;
+
+	module = dlopen(path, RTLD_NOW | RTLD_NOLOAD);
+	if (module) {
+		log_info(libinput, "Module '%s' already loaded\n", path);
+	} else {
+		log_info(libinput, "Loading module '%s'\n", path);
+		module = dlopen(path, RTLD_NOW);
+		if (!module) {
+			log_error(libinput, "Failed to load module: %s\n", dlerror());
+			return NULL;
+		}
+	}
+
+	init = dlsym(module, entrypoint);
+	if (!init) {
+		log_error(libinput, "Failed to lookup init function: %s\n", dlerror());
+		dlclose(module);
+		return NULL;
+	}
+
+	return init;
+}
+
+typedef  void(*func_t)(struct libinput_fork_services* services);
+
+struct libinput_keyboard_plugin  *keyboard_pipeline =  NULL;
+
+LIBINPUT_EXPORT void
+libinput_register_fork(struct libinput_keyboard_plugin* p)
+{
+	keyboard_pipeline = p;
+}
+
+static int32_t
+libinput_event_keyboard_set_key(struct libinput_event_keyboard *event, uint32_t code)
+{
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
+
+	event->key = code;
+	return 0;
+}
+
+static void
+libinput_fork_vlog(struct libinput_fork_services* services,
+		  enum libinput_log_priority priority, const char *format, va_list args)
+{
+	log_msg_va(services->libinput, priority, format, args);
+}
+
+static void
+libinput_fork_log(struct libinput_fork_services* services,
+		  enum libinput_log_priority priority, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	log_msg_va(services->libinput, priority, format, args);
+	va_end(args);
+}
+
+static void
+post_device_event(struct libinput_device *device,
+		  usec_t time,
+		  enum libinput_event_type type,
+		  struct libinput_event *event);
+
+static void
+libinput_fork_post_event(struct libinput_fork_services* services,
+			 struct libinput_device *device,
+			 struct libinput_event_keyboard *key_event)
+{
+	post_device_event(device, key_event->time,
+			  LIBINPUT_EVENT_KEYBOARD_KEY,
+			  &key_event->base);
+}
+
+LIBINPUT_EXPORT int
+libinput_setup_fork(struct libinput *libinput)
+{
+	log_error(libinput, "trying to open fork\n");
+	static const char* function_name = "fork_init";
+
+	const char *mpath = getenv("LIBINPUT_MODULE_PATH");
+	if (mpath == NULL)
+		mpath="/usr/lib/libinput/modules/";
+	func_t init_fn = mmc_weston_load_module(libinput, "fork.so", function_name, mpath);
+	if (init_fn) {
+		log_error(libinput, "trying to invoke %s\n", function_name);
+		// this needs a couple of functions:
+		struct libinput_fork_services *services = malloc(sizeof (struct libinput_fork_services));
+
+		*services = (struct libinput_fork_services) {
+			.libinput = libinput,
+
+			.post_event = libinput_fork_post_event,
+			.log = libinput_fork_log,
+			.vlog = libinput_fork_vlog,
+			.rewrite = libinput_event_keyboard_set_key,
+		};
+		log_error(libinput, "call %s\n", function_name);
+		(*init_fn)(services);
+	}
 	return 0;
 }
 
@@ -2234,6 +2368,7 @@ libinput_dispatch(struct libinput *libinput)
 		if (source->fd == -1)
 			continue;
 
+		// mmc:
 		source->dispatch(source->user_data);
 	}
 
@@ -2481,7 +2616,11 @@ keyboard_notify_key(struct libinput_device *device,
 		.seat_key_count = seat_key_count,
 	};
 
-	post_device_event(device, time, LIBINPUT_EVENT_KEYBOARD_KEY, &key_event->base);
+	if (keyboard_pipeline) {
+		init_event_base(&key_event->base, device, LIBINPUT_EVENT_KEYBOARD_KEY);
+		keyboard_pipeline->accept_event(keyboard_pipeline->user_data, device, key_event);
+	} else
+		post_device_event(device, time, LIBINPUT_EVENT_KEYBOARD_KEY, &key_event->base);
 }
 
 void
@@ -3274,6 +3413,7 @@ libinput_post_event(struct libinput *libinput, struct libinput_event *event)
 #endif
 
 	events_count++;
+	// expand:
 	if (events_count > events_len) {
 		void *tmp;
 
@@ -3308,6 +3448,7 @@ libinput_post_event(struct libinput *libinput, struct libinput_event *event)
 		libinput_device_ref(event->device);
 
 	libinput->events_count = events_count;
+	// store:
 	events[libinput->events_in] = event;
 	libinput->events_in = (libinput->events_in + 1) % libinput->events_len;
 }
@@ -3320,6 +3461,7 @@ libinput_get_event(struct libinput *libinput)
 	if (libinput->events_count == 0)
 		return NULL;
 
+	// mmc: circular buffer? pop() can it be overwritten?
 	event = libinput->events[libinput->events_out];
 	libinput->events_out = (libinput->events_out + 1) % libinput->events_len;
 	libinput->events_count--;
@@ -3334,7 +3476,7 @@ libinput_next_event_type(struct libinput *libinput)
 
 	if (libinput->events_count == 0)
 		return LIBINPUT_EVENT_NONE;
-
+	// mmc: peek
 	event = libinput->events[libinput->events_out];
 	return event->type;
 }
