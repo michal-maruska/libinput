@@ -3657,6 +3657,35 @@ libinput_udev_create_context(const struct libinput_interface *interface,
 
 /**
  * @ingroup base
+ * @struct libinput_keyboard_plugin
+ *
+ * Keyboard event callbacks provided by a fork plugin.
+ */
+struct libinput_keyboard_plugin
+{
+	void *user_data;
+	void (*accept_event)(void *user_data,
+			     const struct libinput_device *device,
+			     const struct libinput_event_keyboard *key_event);
+	void (*accept_time)(void *user_data,
+			    const struct libinput_device *device,
+			    uint64_t time);
+};
+
+/**
+ * @ingroup base
+ *
+ * Register the keyboard plugin.
+ *
+ * This function may only be called once.
+ *
+ * @param plugin The plugin callbacks to register
+ */
+void
+libinput_register_fork(struct libinput_keyboard_plugin *plugin);
+
+/**
+ * @ingroup base
  *
  * Assign a seat to this libinput context. New devices or the removal of
  * existing devices will appear as events during libinput_dispatch().

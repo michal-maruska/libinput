@@ -1896,6 +1896,17 @@ libinput_init(struct libinput *libinput,
 	return 0;
 }
 
+static struct libinput_keyboard_plugin *keyboard_pipeline;
+
+LIBINPUT_EXPORT void
+libinput_register_fork(struct libinput_keyboard_plugin *plugin)
+{
+	if (!plugin || !plugin->accept_event)
+		return;
+
+	keyboard_pipeline = plugin;
+}
+
 void
 libinput_init_quirks(struct libinput *libinput)
 {
@@ -2481,7 +2492,17 @@ keyboard_notify_key(struct libinput_device *device,
 		.seat_key_count = seat_key_count,
 	};
 
-	post_device_event(device, time, LIBINPUT_EVENT_KEYBOARD_KEY, &key_event->base);
+	if (keyboard_pipeline) {
+		init_event_base(&key_event->base, device,
+				LIBINPUT_EVENT_KEYBOARD_KEY);
+		keyboard_pipeline->accept_event(keyboard_pipeline->user_data,
+						device,
+						key_event);
+	} else {
+		post_device_event(device, time,
+				  LIBINPUT_EVENT_KEYBOARD_KEY,
+				  &key_event->base);
+	}
 }
 
 void
