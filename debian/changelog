@@ -1,3 +1,16 @@
+libinput (1.31.3-1-maruska4) unstable; urgency=medium
+
+  * plugin: add keyboard plugin API and routing
+  * plugin: add fork setup and services
+  * add to debian symbols
+  * d/source native
+  * ci: release = make deb in my organization
+  * ci: also on unstable/* tags
+  * ci: build for arm64, for specific ref
+  * Change the README to explain the purpose of this fork
+
+ -- Michal Maruska <mmaruska@gmail.com>  Thu, 26 Nov 2026 22:14:56 +0100
+
 libinput (1.31.3-1) unstable; urgency=medium
 
   * New upstream release.
