@@ -393,4 +393,5 @@ LIBINPUT_1.31 {
 
 LIBINPUT_1.32 {
 	libinput_register_fork;
+	libinput_setup_fork;
 } LIBINPUT_1.31;

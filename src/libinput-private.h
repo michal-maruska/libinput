@@ -228,6 +228,7 @@ struct libinput {
 	struct quirks_context *quirks;
 
 	struct libinput_plugin_system plugin_system;
+	struct libinput_fork_services fork_services;
 
 #ifdef HAVE_LIBWACOM
 	struct {

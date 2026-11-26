@@ -3686,6 +3686,44 @@ libinput_register_fork(struct libinput_keyboard_plugin *plugin);
 
 /**
  * @ingroup base
+ * @struct libinput_fork_services
+ *
+ * Services provided by libinput to a fork plugin.
+ */
+struct libinput_fork_services
+{
+	struct libinput *libinput;
+	void (*post_event)(struct libinput_fork_services *services,
+			   struct libinput_device *device,
+			   struct libinput_event_keyboard *key_event);
+	void (*vlog)(struct libinput_fork_services *services,
+		     enum libinput_log_priority priority,
+		     const char *format,
+		     va_list args);
+	void (*log)(struct libinput_fork_services *services,
+		    enum libinput_log_priority priority,
+		    const char *format, ...);
+	int32_t (*rewrite)(struct libinput_event_keyboard *event,
+			   uint32_t code);
+};
+
+/**
+ * @ingroup base
+ *
+ * Load a plugin and invoke its init function.
+ *
+ * The plugin is loaded from $LIBINPUT_MODULE_PATH/fork.so, or
+ * /usr/lib/libinput/modules/fork.so if LIBINPUT_MODULE_PATH is not set.
+ *
+ * @param libinput A libinput context
+ *
+ * @return 0 on success or -1 on failure
+ */
+int
+libinput_setup_fork(struct libinput *libinput);
+
+/**
+ * @ingroup base
  *
  * Assign a seat to this libinput context. New devices or the removal of
  * existing devices will appear as events during libinput_dispatch().
