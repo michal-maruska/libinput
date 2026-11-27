@@ -3657,6 +3657,73 @@ libinput_udev_create_context(const struct libinput_interface *interface,
 
 /**
  * @ingroup base
+ * @struct libinput_keyboard_plugin
+ *
+ * Keyboard event callbacks provided by a fork plugin.
+ */
+struct libinput_keyboard_plugin
+{
+	void *user_data;
+	void (*accept_event)(void *user_data,
+			     const struct libinput_device *device,
+			     const struct libinput_event_keyboard *key_event);
+	void (*accept_time)(void *user_data,
+			    const struct libinput_device *device,
+			    uint64_t time);
+};
+
+/**
+ * @ingroup base
+ *
+ * Register the keyboard plugin.
+ *
+ * This function may only be called once.
+ *
+ * @param plugin The plugin callbacks to register
+ */
+void
+libinput_register_fork(struct libinput_keyboard_plugin *plugin);
+
+/**
+ * @ingroup base
+ * @struct libinput_fork_services
+ *
+ * Services provided by libinput to a fork plugin.
+ */
+struct libinput_fork_services
+{
+	struct libinput *libinput;
+	void (*post_event)(struct libinput_fork_services *services,
+			   struct libinput_device *device,
+			   struct libinput_event_keyboard *key_event);
+	void (*vlog)(struct libinput_fork_services *services,
+		     enum libinput_log_priority priority,
+		     const char *format,
+		     va_list args);
+	void (*log)(struct libinput_fork_services *services,
+		    enum libinput_log_priority priority,
+		    const char *format, ...);
+	int32_t (*rewrite)(struct libinput_event_keyboard *event,
+			   uint32_t code);
+};
+
+/**
+ * @ingroup base
+ *
+ * Load a plugin and invoke its init function.
+ *
+ * The plugin is loaded from $LIBINPUT_MODULE_PATH/fork.so, or
+ * /usr/lib/libinput/modules/fork.so if LIBINPUT_MODULE_PATH is not set.
+ *
+ * @param libinput A libinput context
+ *
+ * @return 0 on success or -1 on failure
+ */
+int
+libinput_setup_fork(struct libinput *libinput);
+
+/**
+ * @ingroup base
  *
  * Assign a seat to this libinput context. New devices or the removal of
  * existing devices will appear as events during libinput_dispatch().

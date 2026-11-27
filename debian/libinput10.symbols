@@ -20,6 +20,7 @@ libinput.so.10 libinput10 #MINVER#
  LIBINPUT_1.2@LIBINPUT_1.2 1.2.0
  LIBINPUT_1.30@LIBINPUT_1.30 1.30.0
  LIBINPUT_1.31@LIBINPUT_1.31 1.31.0
+ LIBINPUT_1.32@LIBINPUT_1.32 1.31.3-1-maruska4
  LIBINPUT_1.3@LIBINPUT_1.3 1.3.0
  LIBINPUT_1.4@LIBINPUT_1.4 1.4.0
  LIBINPUT_1.5@LIBINPUT_1.5 1.5.0
@@ -279,6 +280,7 @@ libinput.so.10 libinput10 #MINVER#
  libinput_plugin_system_append_path@LIBINPUT_1.30 1.30.0
  libinput_plugin_system_load_plugins@LIBINPUT_1.30 1.30.0
  libinput_ref@LIBINPUT_0.12.0 0.15.0
+ libinput_register_fork@LIBINPUT_1.32 1.31.3-1-maruska4
  libinput_resume@LIBINPUT_0.12.0 0.15.0
  libinput_seat_get_context@LIBINPUT_0.12.0 0.15.0
  libinput_seat_get_logical_name@LIBINPUT_0.12.0 0.15.0
@@ -287,6 +289,7 @@ libinput.so.10 libinput10 #MINVER#
  libinput_seat_ref@LIBINPUT_0.12.0 0.15.0
  libinput_seat_set_user_data@LIBINPUT_0.12.0 0.15.0
  libinput_seat_unref@LIBINPUT_0.12.0 0.15.0
+ libinput_setup_fork@LIBINPUT_1.32 1.31.3-1-maruska4
  libinput_set_user_data@LIBINPUT_0.12.0 0.15.0
  libinput_suspend@LIBINPUT_0.12.0 0.15.0
  libinput_tablet_pad_mode_group_button_is_toggle@LIBINPUT_1.4 1.4.0

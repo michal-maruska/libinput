@@ -25,8 +25,10 @@
 #include "config.h"
 
 #include <assert.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1896,6 +1898,149 @@ libinput_init(struct libinput *libinput,
 	return 0;
 }
 
+static struct libinput_keyboard_plugin *keyboard_pipeline;
+
+LIBINPUT_EXPORT void
+libinput_register_fork(struct libinput_keyboard_plugin *plugin)
+{
+	if (!plugin || !plugin->accept_event)
+		return;
+
+	keyboard_pipeline = plugin;
+}
+
+static void *
+libinput_load_module(struct libinput *libinput,
+		     const char *name,
+		     const char *entrypoint,
+		     const char *module_dir)
+{
+	char path[PATH_MAX];
+	void *module, *init;
+	size_t len;
+
+	if (name == NULL)
+		return NULL;
+
+	if (name[0] != '/') {
+		len = snprintf(path, sizeof path, "%s/%s",
+			       module_dir, name);
+	} else {
+		len = snprintf(path, sizeof path, "%s", name);
+	}
+
+	/* snprintf returns the length of the string it would've written,
+	 * _excluding_ the NUL byte. So even being equal to the size of
+	 * our buffer is an error here. */
+	if (len >= sizeof path)
+		return NULL;
+
+	module = dlopen(path, RTLD_NOW | RTLD_NOLOAD);
+	if (module) {
+		log_info(libinput, "Module '%s' already loaded\n", path);
+	} else {
+		log_info(libinput, "Loading module '%s'\n", path);
+		module = dlopen(path, RTLD_NOW);
+		if (!module) {
+			log_error(libinput,
+				  "Failed to load module: %s\n",
+				  dlerror());
+			return NULL;
+		}
+	}
+
+	init = dlsym(module, entrypoint);
+	if (!init) {
+		log_error(libinput,
+			  "Failed to lookup init function: %s\n",
+			  dlerror());
+		dlclose(module);
+		return NULL;
+	}
+
+	return init;
+}
+
+typedef void (*libinput_fork_init_fn)(struct libinput_fork_services *services);
+
+static int32_t
+libinput_event_keyboard_set_key(struct libinput_event_keyboard *event,
+				uint32_t code)
+{
+	require_event_type(libinput_event_get_context(&event->base),
+			   event->base.type,
+			   0,
+			   LIBINPUT_EVENT_KEYBOARD_KEY);
+
+	event->key = code;
+	return 0;
+}
+
+static void
+libinput_fork_vlog(struct libinput_fork_services *services,
+		   enum libinput_log_priority priority,
+		   const char *format,
+		   va_list args)
+{
+	log_msg_va(services->libinput, priority, format, args);
+}
+
+static void
+libinput_fork_log(struct libinput_fork_services *services,
+		  enum libinput_log_priority priority,
+		  const char *format, ...)
+{
+	va_list args;
+
+	va_start(args, format);
+	libinput_fork_vlog(services, priority, format, args);
+	va_end(args);
+}
+
+static void
+post_device_event(struct libinput_device *device,
+		  usec_t time,
+		  enum libinput_event_type type,
+		  struct libinput_event *event);
+
+static void
+libinput_fork_post_event(struct libinput_fork_services *services,
+			 struct libinput_device *device,
+			 struct libinput_event_keyboard *key_event)
+{
+	(void)services;
+
+	post_device_event(device, key_event->time,
+			  LIBINPUT_EVENT_KEYBOARD_KEY,
+			  &key_event->base);
+}
+
+LIBINPUT_EXPORT int
+libinput_setup_fork(struct libinput *libinput)
+{
+	const char *module_path = getenv("LIBINPUT_MODULE_PATH");
+	if (module_path == NULL)
+		module_path = "/usr/lib/libinput/modules/";
+
+	libinput_fork_init_fn init_fn =
+		(libinput_fork_init_fn)libinput_load_module(
+			libinput, "fork.so", "fork_init", module_path);
+	if (!init_fn)
+		return -1;
+
+	struct libinput_fork_services *services = &libinput->fork_services;
+	*services = (struct libinput_fork_services) {
+		.libinput = libinput,
+		.post_event = libinput_fork_post_event,
+		.log = libinput_fork_log,
+		.vlog = libinput_fork_vlog,
+		.rewrite = libinput_event_keyboard_set_key,
+	};
+	init_fn(services);
+
+	return 0;
+}
+
 void
 libinput_init_quirks(struct libinput *libinput)
 {
@@ -2481,7 +2626,17 @@ keyboard_notify_key(struct libinput_device *device,
 		.seat_key_count = seat_key_count,
 	};
 
-	post_device_event(device, time, LIBINPUT_EVENT_KEYBOARD_KEY, &key_event->base);
+	if (keyboard_pipeline) {
+		init_event_base(&key_event->base, device,
+				LIBINPUT_EVENT_KEYBOARD_KEY);
+		keyboard_pipeline->accept_event(keyboard_pipeline->user_data,
+						device,
+						key_event);
+	} else {
+		post_device_event(device, time,
+				  LIBINPUT_EVENT_KEYBOARD_KEY,
+				  &key_event->base);
+	}
 }
 
 void
